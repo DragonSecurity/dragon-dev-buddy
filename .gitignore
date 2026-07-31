@@ -1,0 +1,14 @@
+# Build output — the installable bundle is produced by scripts/build-plugin.sh,
+# not committed. Committing it means the zip and the skills disagree eventually.
+/dist/
+*.plugin
+
+# Per-project buddy config, written by buddy-setup. Never belongs in this repo,
+# and its engagement block can name a client.
+.dragon-buddy/
+
+# Reports produced by the skills themselves.
+/docs/security/
+
+# macOS
+.DS_Store

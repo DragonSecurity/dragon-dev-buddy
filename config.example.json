@@ -1,0 +1,52 @@
+{
+  "_comment": "Written by dragon-dev-buddy:buddy-setup to .dragon-buddy/config.json. Re-run that skill when the project, stack or threat profile changes. Safe to commit EXCEPT the engagement block if it names a client.",
+  "version": 1,
+  "project": {
+    "name": "[PROJECT NAME]",
+    "what_it_is": "[ONE SENTENCE]",
+    "repo": "[GIT REMOTE OR PATH]",
+    "primary_language": "[e.g. TypeScript]",
+    "stack": ["[e.g. Node 22]", "[e.g. Postgres 16]", "[e.g. React 19]"],
+    "runtime": "[e.g. Cloudflare Workers, Kubernetes, Lambda, bare VM]",
+    "deploy_target": "[e.g. prod cluster via GitHub Actions]"
+  },
+  "security": {
+    "exposure": "[internal | authenticated | public]",
+    "data_sensitivity": "[none | pii | financial | phi | credentials]",
+    "compliance": ["[e.g. SOC2]", "[e.g. GDPR]"],
+    "auth_model": "[e.g. OIDC via Auth0, session cookies, mTLS between services]",
+    "trust_boundaries": ["[e.g. browser -> API]", "[e.g. API -> internal billing service]"],
+    "known_risk_areas": ["[e.g. legacy file upload handler]"]
+  },
+  "engagement": {
+    "_comment": "Only used by skills that produce exploit code or client-facing reports. Leave empty for ordinary internal work on your own code.",
+    "authorized_scope": [],
+    "out_of_scope": [],
+    "authorization_ref": "[ticket, SOW or written approval this work is covered by]",
+    "contact": "[who to notify on a critical finding]"
+  },
+  "practice": {
+    "test_command": "[e.g. npm test]",
+    "lint_command": "[e.g. npm run lint]",
+    "build_command": "[e.g. npm run build]",
+    "sca_tool": "[e.g. npm audit, osv-scanner, trivy, none]",
+    "sast_tool": "[e.g. semgrep, codeql, none]",
+    "secret_scanner": "[e.g. gitleaks, trufflehog, none]",
+    "ci": "[e.g. GitHub Actions]"
+  },
+  "buddy": {
+    "enabled": true,
+    "server": "buddy",
+    "advise_before_work": true,
+    "observe_after_every_skill": true,
+    "skill_prefix": "dragon-dev-buddy"
+  },
+  "output": {
+    "reports_dir": "docs/security",
+    "format": "markdown"
+  },
+  "skill_level": "[e.g. senior backend engineer, new to appsec]",
+  "voice": {
+    "avoid": []
+  }
+}
