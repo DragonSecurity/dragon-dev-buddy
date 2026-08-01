@@ -34,7 +34,17 @@ Run the gates. Each is pass, warn, or fail. Report all of them; do not stop at t
 
 6. **Rollback plan.** There must be one, and it must be real. How is this reverted, how fast, and does the revert itself carry risk (a migration that ran, a cache that was poisoned, a message already sent)? "We'd roll back" is not a plan; "revert the deploy, the migration is additive so it can stay, ~3 minutes" is. No credible rollback is a warn that escalates to no-ship as blast radius grows.
 
-7. **Give the verdict.** One of:
+7. **Can this actually land.** Every gate above asks whether the change *should* ship. This one asks whether it *can*, and it is the one people skip until a push is rejected. Check the mechanics of the target branch:
+
+   - **Branch rules and protections.** Required status checks, required reviews, linear-history or signed-commit requirements, and whether the branch accepts direct pushes at all. On GitHub: `gh api repos/{owner}/{repo}/rules/branches/{branch}`.
+   - **Whether the required checks can run on the route you are taking.** This is the trap. A check supplied by an app that only reports on pull requests can never be satisfied by a direct push, so "push to main" is not merely discouraged, it is impossible. Read each required check and ask what triggers it.
+   - **Commit message requirements.** DCO or `Signed-off-by:` trailers, conventional-commit prefixes, an issue reference. These are enforced against every commit in the range, not just the tip, and a rebase or squash can drop a trailer a hook added.
+   - **Allowed merge methods.** `gh api repos/{owner}/{repo} --jq '{merge:.allow_merge_commit, squash:.allow_squash_merge, rebase:.allow_rebase_merge}'`. If the release is deliberately split into commits that each stand alone, a squash-only repository will silently destroy that structure — flag it before the merge, not after.
+   - **That you can push at all.** Credentials, SSO authorization on the token, write access to a protected branch.
+
+   Failures here are rarely dangerous, but they are always wasted time, and they arrive at the worst moment — after the review is done and the author has moved on. Report a blocker as a fail with the specific rule named and the route that would satisfy it ("main requires the DCO check, which only runs on a pull request — open one rather than pushing"). This gate is cheap; if the user is iterating, run it before the slow gates rather than after.
+
+8. **Give the verdict.** One of:
    - **Ship** — gates pass, risk understood, rollback exists. Say so plainly.
    - **Ship with conditions** — go, but do X first or watch Y after. Name them specifically.
    - **Do not ship** — a gate failed. State which, and what would clear it.
@@ -54,6 +64,7 @@ Run the gates. Each is pass, warn, or fail. Report all of them; do not stop at t
 | Migrations | pass/warn/fail/na | [reversible? backup?] |
 | Blast radius | — | [what breaks if this is wrong] |
 | Rollback | pass/warn/fail | [the actual plan and its time] |
+| Can it land | pass/fail | [branch rules, required checks, merge method, signoff] |
 
 ## Verdict: **[SHIP / SHIP WITH CONDITIONS / DO NOT SHIP]**
 [the reasoning, and any conditions or blockers, specifically]
@@ -91,5 +102,6 @@ See `examples/ship-it-run.md` for a gate that says no to a payout change and the
 - Migrations were checked for reversibility and backward-compatibility, not just correctness.
 - Blast radius is stated concretely — what breaks if this is wrong, named.
 - A real rollback plan exists, with a time, or its absence is the finding.
+- The branch rules were read, not assumed — including whether each required check can run on the route being taken, and whether the allowed merge method preserves the commit structure the release depends on.
 - The verdict is unambiguous. Ship, conditions, or no-ship — never a hedge the user has to interpret.
 - The gate is willing to say no. If it never would, it is not a gate.
