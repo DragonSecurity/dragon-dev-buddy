@@ -73,6 +73,8 @@ The queue is not the unit of work. Risk is. Never process these in the order the
 
 4. **Read the lockfile, not the version number.** A dependency PR is a supply-chain event: someone else's code entering yours. The meaningful diff is the set of newly resolved packages, not the number in the manifest. A patch bump that pulls in three new transitive packages deserves more attention than a major bump that pulls in none. Any *new* package name in the lockfile gets the `references/supply-chain.md` checks — age, maintainer count, install scripts, name similarity — because that is a dependency nobody chose.
 
+   This is the deliberate exception to `secure-code-review`'s batch-triage table, which skims lockfile churn. That is right when a lockfile moved as a side effect of someone else's feature and there is nothing in it that anybody chose to add. It is exactly wrong here, where the resolved set is the whole of what the PR does.
+
 5. **Establish that CI means something before treating it as evidence.** A green check on an update PR is only worth what the pipeline runs. If the workflow does not execute the test suite, or the tests do not exercise the upgraded package, green means "it installed". Say which of the two you have.
 
 6. **Order the merges.** Batched patch and minor updates first: they are the least likely to break and merging them proves the pipeline is healthy before anything risky rides on it. Then majors, one at a time, each with its breaking changes named. A major merged alongside anything else makes the bisect ambiguous when something fails next week.

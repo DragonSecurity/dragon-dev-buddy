@@ -47,9 +47,11 @@ When reviewing several PRs, depth is the scarce resource. Rank by what the chang
 | A new or changed HTTP route, GraphQL resolver, RPC handler, webhook | Full workflow |
 | Raw SQL, template rendering, shell execution, a filesystem path from a request, deserialization | Full workflow |
 | CI workflow, Dockerfile, IaC, dependency manifest | Route to `secrets-and-config-audit` or `dependency-audit` |
-| Generated SDK output, lockfile-only, docs, tests, formatting | Skim, and say it was skimmed |
+| Generated SDK output, incidental lockfile churn, docs, tests, formatting | Skim, and say it was skimmed |
 
 The bottom row is where the pack's other skills earn their place: reviewing a regenerated client line by line is effort spent where defects do not live. See `codegen-pipeline.md`.
+
+**"Incidental" is doing real work in that row.** A lockfile that moved as a side effect of a feature is noise. A lockfile diff in a dependency *update* PR is the entire payload — the version in the manifest is a label, and the set of newly resolved packages is what actually enters the tree. Skimming that is skimming the change itself. Those go to `dependency-audit`'s inbound mode, which reads the resolved set rather than the version string.
 
 ## What per-PR review cannot see
 
