@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/buddy-session-start.mjs\"",
+            "timeout": 20,
+            "statusMessage": "Checking on the buddy..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/buddy-observe-gate.py\"",
+            "timeout": 15,
+            "statusMessage": "Checking the buddy got told..."
+          }
+        ]
+      }
+    ]
+  }
+}

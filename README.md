@@ -41,6 +41,25 @@ and `buddy_status`, `buddy_skills`, `buddy_rename` for looking after the
 companion itself. If the server is absent every skill still works; it just skips
 the advice and the reporting.
 
+### Hooks
+
+Installing this plugin registers two hooks from `hooks/hooks.json`; there is
+nothing to add to `settings.json`.
+
+| Event | What it does |
+| --- | --- |
+| `SessionStart` | Calls `buddy_status` and puts the card in context, so the check-in happens whether or not the model remembers to ask. |
+| `Stop` | Blocks once if a turn edited files but never called `buddy_observe`, so work does not go unrecorded. |
+
+An instruction in `CLAUDE.md` is advisory and gets skipped — most often when the
+client defers MCP tools behind `ToolSearch`, so `buddy_*` is not in the tool list
+at all. Hooks are enforced by the client, which is why the calls live here.
+
+Both hooks fail open and silent: no buddy, no server, or a protocol change means
+they emit nothing rather than wedging your session. `buddy-session-start.mjs`
+finds the server via `$BUDDY_MCP_PATH`, then your MCP config, then `buddy-mcp` on
+`PATH`. The `Stop` gate logs every decision to `~/.claude/buddy-gate.log`.
+
 The two halves feed each other. `buddy_observe(skills_used)` is what trains the
 ranking that `buddy_advise` returns, which is why every skill in this pack passes
 it — a skill that reports nothing makes the advice worse for every skill.
