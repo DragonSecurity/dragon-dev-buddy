@@ -2,9 +2,9 @@
 # Bundle the pack into dist/dragon-dev-buddy.plugin, the zip Claude accepts as an
 # uploaded plugin.
 #
-# Only what a plugin loader needs goes in: the manifest, the skills, the config
-# template and the docs. The Go validator, CI config and git metadata stay out —
-# they are how the pack is maintained, not part of what it does.
+# Only what a plugin loader needs goes in: the manifest, the skills, the hooks,
+# the config template and the docs. The Go validator, CI config and git metadata
+# stay out — they are how the pack is maintained, not part of what it does.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,6 +26,7 @@ rm -f "$out"
 zip -r -q "$out" \
 	.claude-plugin \
 	skills \
+	hooks \
 	config.example.json \
 	README.md \
 	LICENSE \
