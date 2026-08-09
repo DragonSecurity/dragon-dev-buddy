@@ -72,6 +72,24 @@ failing build.
 - **No local absolute paths in the docs.** `/Users/...` and `/home/...` fail the
   build. This repo's own `secrets-and-config-audit` would flag it.
 - **The README lists exactly the skills that exist**, count included.
+- **One version, written in three places, agreeing.** The manifest, the
+  marketplace entry and the newest released heading in the changelog carry the
+  same `X.Y.Z`. Auto-update compares the manifest version and nothing else, so
+  the two copies that drift are the two nobody notices: a marketplace entry left
+  a release behind advertises something no one can install, and a changelog that
+  never got its heading renamed leaves the release with no description at all.
+- **The marketplace entry describes this pack**, not a stale ancestor of it —
+  same name, same description, pointed at this repository. It is duplicated
+  metadata, and duplicated metadata is only safe while something checks it.
+- **`.mcp.json` declares the buddy server as a git spec pinned to a major.**
+  buddy-mcp is never published to the npm registry, so the specifier is
+  `github:DragonSecurity/buddy-mcp#semver:^2` and the range resolves against that
+  repository's tags. Every skill here calls `buddy_advise` and `buddy_observe`;
+  a spec that tracked a branch, or a range that reached past the major, would let
+  a buddy-mcp 3.0 change those tools out from under the whole pack on a machine
+  where nothing was changed and nothing was released. The consumer compiles the
+  server from the tag, so this is also the line that decides how long a
+  contributor's first session waits.
 
 Adding a skill therefore means touching three things: the directory, the README
 table, and nothing else — the tests will tell you if you missed one.
@@ -93,10 +111,59 @@ reads as bolted on:
 
 ## Releasing
 
-Bump `version` in `.claude-plugin/plugin.json`, add a `CHANGELOG.md` entry, then:
+A release is a tag on `main`; everything after the tag is automated. The version
+is written in three places and the tests refuse to let them disagree, so change
+all three in the same commit:
+
+1. In `CHANGELOG.md`, rename `## Unreleased` to `## X.Y.Z — YYYY-MM-DD` and open
+   a fresh empty `## Unreleased` above it.
+2. Set `version` in `.claude-plugin/plugin.json`, and the `version` of the
+   `dragon-dev-buddy` entry in `.claude-plugin/marketplace.json`, to that same
+   `X.Y.Z`.
+3. Run `go test ./...`. It now enforces manifest, changelog and marketplace
+   agreement, which is worth catching here: everything else in this repo can be
+   quietly corrected in the next commit, and a tag cannot.
+4. Merge to `main`, then tag the merged commit and push the tag:
 
 ```sh
-./scripts/build-plugin.sh
+git switch main && git pull        # tag the commit CI green-lit, not a branch tip
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-CI builds the same bundle on every push and attaches it as an artifact.
+Tag `main` and only `main`. A tag on a branch cuts a release from a tree that
+never landed, and the result is indistinguishable from a real one until someone
+installs it and finds work that is not on `main`.
+
+`.github/workflows/release.yml` picks the tag up, builds
+`dist/dragon-dev-buddy-X.Y.Z.plugin` the same way `scripts/build-plugin.sh` does
+locally, and cuts the GitHub release with the bundle attached. CI also builds
+that bundle on every push and attaches it as an artifact, so a broken build
+surfaces on the pull request rather than at the tag.
+
+Nothing is published to a package registry — not this pack, and not the buddy
+server it depends on. For the pack, the GitHub release and the marketplace entry
+in this repository are the whole distribution channel; for buddy-mcp, the tags
+are, because `npx -y github:DragonSecurity/buddy-mcp#semver:^2` resolves `^2`
+against them and installs by cloning and compiling whichever tag wins. In both
+repositories the tag is what someone else's install actually fetches, which is
+why step 3 exists before step 4 does.
+
+**The buddy-mcp tag has to exist before this one does.** npm resolves the
+`#semver:^2` in `.mcp.json` against the tags in `DragonSecurity/buddy-mcp` at the
+moment a session starts, not at the moment this pack was released, so a tag here
+that reaches someone before a matching `v2.x` tag is pushed there points at a
+range with nothing in it. npm fails the install outright — `npm error code
+ENOVERSIONS` — Claude Code reports a server that would not start, no `buddy_*`
+tool is in the session at all, and every skill in the pack quietly takes its
+no-buddy path while looking installed and healthy. Push the buddy-mcp tag first,
+confirm it with `git ls-remote --tags https://github.com/DragonSecurity/buddy-mcp`,
+and only then tag here. The other order leaves a window where a fresh install of
+this pack is broken, and that window is exactly as long as the gap between the
+two pushes.
+
+Which number moves is the README's Versioning section: for a skill pack a
+breaking change is a renamed skill or a changed buddy contract, not a rewritten
+paragraph. Nothing reaches an installed copy until the manifest version goes up —
+auto-update compares that and only that — so a release that forgets the bump is
+a release nobody receives.
