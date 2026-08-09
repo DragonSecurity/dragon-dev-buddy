@@ -3,7 +3,7 @@
 A Claude plugin for people who write code that has to hold up under attack, with a
 persistent companion attached.
 
-16 skills covering the loop from *what could go wrong* through *ship it* to
+17 skills covering the loop from *what could go wrong* through *ship it* to
 *write up what happened*. Every skill asks your
 [buddy-mcp](https://github.com/DragonSecurity/buddy-mcp) companion what to load
 before it starts and tells it what happened after, so the buddy gains XP, tracks
@@ -193,6 +193,7 @@ it — a skill that reports nothing makes the advice worse for every skill.
 | --- | --- |
 | `buddy-setup` | Interviews you once, writes `.dragon-buddy/config.json`, hatches the buddy. |
 | `buddy-companion` | How to keep the companion healthy and read what it has learned. |
+| `project-memory` | Records what this codebase taught you — constraints, rejected approaches, gotchas — and loads it at the start of every future session. |
 | `security-audit-orchestrator` | Chains the pack in dependency order for a full audit in one pass. Use it when you do not yet know what you are looking for. |
 
 **Design and build**

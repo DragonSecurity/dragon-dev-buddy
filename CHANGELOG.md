@@ -4,6 +4,58 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.2.0 — 2026-08-09
+
+### Added
+
+- **`project-memory`**, the seventeenth skill. Records what a codebase taught
+  you — constraints with non-obvious reasons, approaches tried and rejected,
+  gotchas that fail silently — as one fact per file in `.dragon-buddy/memories/`,
+  and loads them at the start of every future session. A session is disposable
+  and the knowledge in it is not; without somewhere to put it, each session
+  rediscovers what the last one already paid for.
+
+  Most of the skill is about refusing to write things down. A directory that
+  restates the README costs context on every session forever and buries the
+  memories that matter, so `references/memory-criteria.md` is a keep-or-drop test
+  — durable, not derivable, would cost a future session real time — worked
+  through on real candidates.
+
+- `hooks/project-memory.mjs`, a `SessionStart` hook that reads the directory and
+  puts the memories in context. Separate from `buddy-session-start.mjs` on
+  purpose: that hook speaks MCP to a server that may not be installed, this one
+  reads files, and sharing a process would mean a missing buddy costs you your
+  memories. There is deliberately no index file — an index is a second copy of
+  every description with nothing keeping it in step, so the listing is built by
+  reading the directory each time. Past a context budget it sends the one-line
+  descriptions and the paths instead of the bodies.
+
+- `scripts/pre-commit-memory-guard.sh`, and a `.gitignore` rule naming
+  `.dragon-buddy/memories/` specifically. Memories stay on the machine: they are
+  working notes, and they collect paths, hosts and names that read very
+  differently in a public repository than in an editor. The ignore rule is the
+  control; the guard is the backstop for `git add -f` and for a repository whose
+  rule drifted. It refuses to commit the directory at all rather than scanning it
+  for secrets — "this does not get committed" is a fact, where "no credentials in
+  this file" is a judgement call with false negatives.
+
+  The guard resolves `core.hooksPath` rather than assuming `.git/hooks`. A
+  machine with that set globally — dotfiles, husky — never consults `.git/hooks`,
+  so the obvious install produces a guard that is never invoked, and a guard that
+  fails open is worse than none. The skill installs where git actually looks and
+  then verifies it refuses something.
+
+- Tests pinning the ignore rule, the guard's presence and executable bit, and
+  that every hook script in `hooks/` is registered in `hooks.json`. The last one
+  exists because a written, installed-looking, never-registered hook is exactly
+  how the observe gate's clear half went missing for a whole release cycle.
+
+### Fixed
+
+- `scripts/build-plugin.sh` now ships the commit guard. The skill tells the user
+  to install it from `${CLAUDE_PLUGIN_ROOT}`, and `scripts/` was excluded from
+  the bundle — so on the documented marketplace install the path did not exist.
+
 ## 1.1.3 — 2026-08-09
 
 ### Fixed

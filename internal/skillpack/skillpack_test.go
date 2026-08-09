@@ -804,3 +804,90 @@ func TestObserveGateMatcherCoversTheRealToolName(t *testing.T) {
 		}
 	}
 }
+
+// TestMemoriesAreIgnored pins the one guarantee project-memory makes to the
+// user: what it writes stays on their machine.
+//
+// The pack's own .gitignore already excludes all of .dragon-buddy/, but that is
+// not the rule being asserted — buddy-mcp commits its .dragon-buddy config and
+// reports, and any project may reasonably do the same. The memories directory
+// has to be excluded on its own account, or it rides along with them into a
+// public repository the first time someone decides their config is worth
+// committing.
+func TestMemoriesAreIgnored(t *testing.T) {
+	ignore := readFile(t, ".gitignore")
+	if !strings.Contains(ignore, ".dragon-buddy/memories/") {
+		t.Error(".gitignore has no rule naming .dragon-buddy/memories/ specifically; " +
+			"a project that commits the rest of .dragon-buddy would publish its memories")
+	}
+
+	// The skill promises this script exists and tells the user to symlink it as
+	// a pre-commit hook. A promise to a path is a promise the tests can keep.
+	guard := filepath.Join(root, "scripts", "pre-commit-memory-guard.sh")
+	info, err := os.Stat(guard)
+	if err != nil {
+		t.Fatalf("scripts/pre-commit-memory-guard.sh is missing, but project-memory tells the user to install it: %v", err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Error("pre-commit-memory-guard.sh is not executable, so symlinking it as a git hook does nothing")
+	}
+}
+
+// TestSessionStartHooksAreRegistered pins every hook script the pack ships to an
+// entry in hooks.json.
+//
+// A hook that exists and is not registered is the most expensive shape of dead
+// code here: it is fully written, it looks installed, and it silently never
+// runs. That is exactly how the observe gate's clear half went missing for a
+// whole release cycle.
+func TestSessionStartHooksAreRegistered(t *testing.T) {
+	raw := readFile(t, "hooks/hooks.json")
+
+	var cfg struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("hooks/hooks.json does not parse: %v", err)
+	}
+
+	registered := map[string]bool{}
+	for _, entries := range cfg.Hooks {
+		for _, e := range entries {
+			for _, h := range e.Hooks {
+				for _, script := range scriptNames(h.Command) {
+					registered[script] = true
+				}
+			}
+		}
+	}
+
+	files, err := os.ReadDir(filepath.Join(root, "hooks"))
+	if err != nil {
+		t.Fatalf("reading hooks/: %v", err)
+	}
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".mjs") {
+			continue
+		}
+		if !registered[f.Name()] {
+			t.Errorf("hooks/%s is never referenced by hooks.json, so it can never run", f.Name())
+		}
+	}
+}
+
+// scriptNames pulls the *.mjs basenames out of a hook command line.
+func scriptNames(command string) []string {
+	var out []string
+	for _, field := range strings.FieldsFunc(command, func(r rune) bool {
+		return r == '/' || r == '"' || r == ' '
+	}) {
+		if strings.HasSuffix(field, ".mjs") {
+			out = append(out, field)
+		}
+	}
+	return out
+}
