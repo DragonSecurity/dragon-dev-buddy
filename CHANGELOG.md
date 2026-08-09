@@ -4,6 +4,22 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.1.2 — 2026-08-09
+
+### Fixed
+
+- The observe gate blocked every turn that touched a file, whether or not the
+  turn had called `buddy_observe`. The PostToolUse matcher read
+  `buddy_observe`, but an MCP tool is addressed as `mcp__<server>__<tool>` and
+  the client matches the whole name, so the clear half of the gate was never
+  invoked once. The mark was set on every edit and nothing ever removed it.
+
+  Found by the logging added in 1.1.1, which showed ten `mark` events and zero
+  `clear` events in a session that had recorded three times. A test now pins
+  the matcher against the fully qualified tool name — anchored, because
+  `buddy_observe` occurs inside `mcp__buddy__buddy_observe` and an unanchored
+  check passes against the broken matcher.
+
 ## 1.1.1 — 2026-08-09
 
 ### Fixed

@@ -14,7 +14,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|NotebookEdit|MultiEdit|buddy_observe",
+        "matcher": "Edit|Write|NotebookEdit|MultiEdit|.*buddy_observe.*",
         "hooks": [
           {
             "type": "command",
