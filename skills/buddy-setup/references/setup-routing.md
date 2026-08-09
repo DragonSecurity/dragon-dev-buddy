@@ -34,6 +34,14 @@ Match on the strongest signal, top to bottom. Stop at the first match.
 2. `secure-feature-build` — put abuse cases in the spec before the first line
 3. `buddy-companion` — get the reporting habit established early
 
+**Manages a device fleet or network** (`fleet.managed` true)
+1. `fleet-drift-audit` — you cannot secure a fleet whose actual state nobody knows
+2. `segmentation-review` — on the boundary that would hurt most if it were not real
+3. `change-window` — before the first change that comes out of either
+
+Route to `device-lifecycle` ahead of these when the trigger is a published advisory
+or a scanner report rather than general unease.
+
 **Offensive engagement recorded** (`engagement.authorized_scope` non-empty)
 1. `security-audit-orchestrator` — runs the full chain in dependency order
 2. `vuln-triage` — for each finding as it surfaces
@@ -59,6 +67,12 @@ For data sensitivity, ask what the worst row in the biggest table is. People des
 | `security.trust_boundaries` | `threat-model` starts from these instead of deriving them |
 | `security.known_risk_areas` | `security-audit-orchestrator` prioritizes these first |
 | `engagement.*` | gates `vuln-triage` PoC output and `pentest-report` entirely |
+| `fleet.managed` | whether the fleet skills apply at all; leave false for an ordinary app repo |
+| `fleet.inventory_source`, `fleet.device_classes` | `fleet-drift-audit`, `device-lifecycle` |
+| `fleet.config_backup`, `fleet.golden_config` | `fleet-drift-audit` — without a backup the audit is a snapshot that goes stale in a week |
+| `fleet.vendors` | all four fleet skills, for ruleset and rollback semantics |
+| `fleet.out_of_band` | `change-window`. The key that decides whether a self-severing change can be gated at all. |
+| `fleet.change_window`, `fleet.approval` | `change-window`, `device-lifecycle` upgrade sequencing |
 | `practice.test_command` | `security-test-writer`, `debug-and-fix`, `ship-it` |
 | `practice.sca_tool` | `dependency-audit` |
 | `practice.sast_tool`, `practice.secret_scanner` | `secrets-and-config-audit`, `secure-code-review` |
