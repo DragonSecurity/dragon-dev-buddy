@@ -7,6 +7,14 @@
 # and its engagement block can name a client.
 .dragon-buddy/
 
+# Project memories, in every repository that installs this pack. Listed
+# separately from the line above because a project may well decide to commit its
+# .dragon-buddy config and reports -- buddy-mcp does -- and this directory still
+# must not go with them. Memories are working notes, and they collect paths,
+# hosts and names that read very differently in a public repository than they do
+# in an editor. scripts/pre-commit-memory-guard.sh is the backstop for `add -f`.
+.dragon-buddy/memories/
+
 # Reports produced by the skills themselves.
 /docs/security/
 

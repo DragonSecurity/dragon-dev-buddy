@@ -48,6 +48,7 @@ zip -r -q "$out" \
 	skills \
 	hooks \
 	.mcp.json \
+	scripts/pre-commit-memory-guard.sh \
 	config.example.json \
 	README.md \
 	LICENSE \
