@@ -12,12 +12,24 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|MultiEdit|buddy_observe",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/buddy-observe-gate.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/buddy-observe-gate.py\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/buddy-observe-gate.mjs\"",
             "timeout": 15,
             "statusMessage": "Checking the buddy got told..."
           }
