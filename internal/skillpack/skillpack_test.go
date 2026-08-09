@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -59,6 +61,425 @@ func TestPluginManifest(t *testing.T) {
 		t.Error("manifest author.name is empty")
 	}
 }
+
+func loadPlugin(t *testing.T) skillpack.Plugin {
+	t.Helper()
+	p, err := skillpack.LoadPlugin(root)
+	if err != nil {
+		t.Fatalf("loading manifest: %v", err)
+	}
+	return p
+}
+
+func loadReleases(t *testing.T) []skillpack.Release {
+	t.Helper()
+	releases, err := skillpack.ChangelogVersions(root)
+	if err != nil {
+		t.Fatalf("reading changelog: %v", err)
+	}
+	if len(releases) == 0 {
+		t.Fatal("CHANGELOG.md names no released version; every shipped version is written down there")
+	}
+	return releases
+}
+
+// TestVersionIsSemver parses the manifest version instead of eyeballing its
+// shape, because every check below compares versions numerically. A version that
+// does not parse would not fail those checks — it would skip them.
+func TestVersionIsSemver(t *testing.T) {
+	v, err := skillpack.ParseVersion(loadPlugin(t).Version)
+	if err != nil {
+		t.Fatalf("%s: %v", ".claude-plugin/plugin.json", err)
+	}
+	if (v == skillpack.Version{}) {
+		t.Error("manifest version is 0.0.0, which is the placeholder nobody replaced rather than a release")
+	}
+}
+
+// TestVersionCompareOrdersNumerically exists because the obvious implementation
+// of every ordering check in this file is a string comparison, and a string
+// comparison is right for eleven versions and wrong for the twelfth: "1.10.0"
+// sorts below "1.9.0". The file-based tests below cannot catch that — they would
+// pass today and fail on the release after 1.9.0, months later, reading as a
+// changelog mistake rather than a comparison bug.
+func TestVersionCompareOrdersNumerically(t *testing.T) {
+	for _, tc := range []struct {
+		a, b string
+		want int
+	}{
+		{"1.9.0", "1.10.0", -1},
+		{"1.10.0", "1.9.0", 1},
+		{"1.1.0", "1.1.0", 0},
+		{"2.0.0", "1.99.99", 1},
+		{"1.1.2", "1.1.10", -1},
+		{"0.9.0", "1.0.0", -1},
+	} {
+		a, err := skillpack.ParseVersion(tc.a)
+		if err != nil {
+			t.Fatalf("parsing %q: %v", tc.a, err)
+		}
+		b, err := skillpack.ParseVersion(tc.b)
+		if err != nil {
+			t.Fatalf("parsing %q: %v", tc.b, err)
+		}
+		if got := a.Compare(b); got != tc.want {
+			t.Errorf("%s compared to %s = %d, want %d", tc.a, tc.b, got, tc.want)
+		}
+	}
+
+	for _, bad := range []string{"1.1", "v1.1.0", "1.1.0-rc.1", "01.1.0", "", "latest"} {
+		if v, err := skillpack.ParseVersion(bad); err == nil {
+			t.Errorf("ParseVersion(%q) accepted the version as %s; the manifests only ever carry plain releases", bad, v)
+		}
+	}
+}
+
+// TestParseGitHubSpecRejectsEveryOtherForm guards the .mcp.json check below by
+// pinning what the parser refuses. Each entry here is a specifier npx would
+// happily accept and install *something* from, so a lenient parser would not
+// make the check fail — it would make the check pass while installing the wrong
+// thing, which is the failure mode that costs a day to find.
+//
+// The registry form leads the list because it is the one this repository
+// actually shipped: `.mcp.json` declared `buddy-mcp@^2` for a package that is
+// distributed as GitHub releases and was never published to npm, so the pack
+// advertised a companion server that could not start on any machine but the
+// author's, where it was already installed by path.
+func TestParseGitHubSpecRejectsEveryOtherForm(t *testing.T) {
+	for _, tc := range []struct {
+		spec             string
+		owner, repo, rng string
+	}{
+		{"github:DragonSecurity/buddy-mcp#semver:^2", "DragonSecurity", "buddy-mcp", "^2"},
+		{"github:DragonSecurity/buddy-mcp#semver:^2.1.0", "DragonSecurity", "buddy-mcp", "^2.1.0"},
+		{"github:someone-else/buddy-mcp#semver:^2", "someone-else", "buddy-mcp", "^2"},
+	} {
+		got, err := skillpack.ParseGitHubSpec(tc.spec)
+		if err != nil {
+			t.Errorf("ParseGitHubSpec(%q): %v", tc.spec, err)
+			continue
+		}
+		if got.Owner != tc.owner || got.Repo != tc.repo || got.Range != tc.rng {
+			t.Errorf("ParseGitHubSpec(%q) = %s/%s at %q, want %s/%s at %q", tc.spec, got.Owner, got.Repo, got.Range, tc.owner, tc.repo, tc.rng)
+		}
+	}
+
+	for _, tc := range []struct {
+		spec string
+		why  string
+	}{
+		{"buddy-mcp@^2", "a registry range for a package that is not on the registry"},
+		{"buddy-mcp", "a bare registry name"},
+		{"@dragonsecurity/buddy-mcp@^2", "a scoped registry name"},
+		{"github:DragonSecurity/buddy-mcp", "no ref at all, so npm takes the default branch"},
+		{"github:DragonSecurity/buddy-mcp#main", "a branch ref, which is not a range"},
+		{"github:DragonSecurity/buddy-mcp#v2.1.0", "a tag ref, which freezes on one release"},
+		{"github:DragonSecurity/buddy-mcp#semver^2", "a `#semver:` prefix with the colon dropped"},
+		{"github:buddy-mcp#semver:^2", "a repository with no owner"},
+		{"", "an empty specifier"},
+	} {
+		if got, err := skillpack.ParseGitHubSpec(tc.spec); err == nil {
+			t.Errorf("ParseGitHubSpec(%q) accepted %s as %s", tc.spec, tc.why, got)
+		}
+	}
+}
+
+// TestCaretMajorRejectsFloatingRanges guards the check below it. If CaretMajor
+// were lenient — reporting a major for "latest" or "*" — the .mcp.json test
+// would still pass while asserting nothing, which is the worse of the two
+// failures because it looks like coverage.
+func TestCaretMajorRejectsFloatingRanges(t *testing.T) {
+	if major, ok := skillpack.CaretMajor("^2.1"); !ok || major != 2 {
+		t.Errorf("CaretMajor(\"^2.1\") = %d, %v; want 2, true", major, ok)
+	}
+	for _, floating := range []string{"latest", "*", "", "2", ">=2", "~2.1.0", "^"} {
+		if major, ok := skillpack.CaretMajor(floating); ok {
+			t.Errorf("CaretMajor(%q) reported major %d; a range that is not a caret range pins nothing", floating, major)
+		}
+	}
+}
+
+// TestManifestVersionIsNewestRelease is the drift the whole exercise exists to
+// stop. The pack shipped four substantive changes — plugin hooks, PR and batch
+// review, the can-this-land gate, the inbound dependency mode — while
+// plugin.json sat at 1.0.0, and nothing anywhere noticed. Nobody is offered an
+// update they are not told about: Claude Code compares the published version
+// against the installed one, and the copy installed on the machine that wrote
+// those changes is still recorded as 1.0.0. Cutting a changelog section is the
+// step people remember; bumping the manifest is the one they forget.
+//
+// The newest release is found by comparing versions rather than by taking the
+// first heading, so this test says what it means even while the changelog is out
+// of order — keeping the ordering failure in the test that is about ordering.
+func TestManifestVersionIsNewestRelease(t *testing.T) {
+	p := loadPlugin(t)
+	manifest, err := skillpack.ParseVersion(p.Version)
+	if err != nil {
+		t.Fatalf(".claude-plugin/plugin.json: %v", err)
+	}
+
+	newest := loadReleases(t)[0]
+	for _, r := range loadReleases(t) {
+		if r.Version.Compare(newest.Version) > 0 {
+			newest = r
+		}
+	}
+
+	if manifest.Compare(newest.Version) != 0 {
+		t.Errorf("plugin.json version is %s but the newest released CHANGELOG.md heading is %s (line %d); bump the manifest in the same commit that cuts the section, or the release is invisible to everyone who already installed the pack",
+			manifest, newest.Version, newest.Line)
+	}
+}
+
+// TestChangelogReleasesDescend keeps the changelog readable in the one way that
+// matters: the top entry is the current release. A section inserted in the wrong
+// place, or a version reused for a second set of notes, makes "the newest
+// heading" a different answer from "the highest version" — and every human who
+// reads this file reads only the top of it.
+func TestChangelogReleasesDescend(t *testing.T) {
+	releases := loadReleases(t)
+
+	seen := map[string]int{}
+	for _, r := range releases {
+		if first, dup := seen[r.Version.String()]; dup {
+			t.Errorf("CHANGELOG.md:%d: %s appears again, first written at line %d; one version, one section", r.Line, r.Version, first)
+			continue
+		}
+		seen[r.Version.String()] = r.Line
+	}
+
+	for i := 1; i < len(releases); i++ {
+		prev, curr := releases[i-1], releases[i]
+		if prev.Version.Compare(curr.Version) <= 0 {
+			t.Errorf("CHANGELOG.md:%d: %s is listed below %s (line %d); releases run newest first",
+				curr.Line, curr.Version, prev.Version, prev.Line)
+		}
+	}
+}
+
+// TestMarketplaceEntryMatchesManifest checks the second copy of the pack's
+// identity instead of trusting it. The marketplace entry is what a user reads
+// before installing and what auto-update compares against; plugin.json is what
+// they get. Nothing reconciles the two, so a bump applied to one of them
+// advertises a version that does not match its contents — and this entry used to
+// live outside the repository entirely, where it had already drifted.
+func TestMarketplaceEntryMatchesManifest(t *testing.T) {
+	p := loadPlugin(t)
+
+	m, err := skillpack.LoadMarketplace(root)
+	if err != nil {
+		t.Fatalf("loading marketplace: %v", err)
+	}
+
+	entry, ok := m.Entry(p.Name)
+	if !ok {
+		t.Fatalf(".claude-plugin/marketplace.json lists no plugin named %q; the marketplace this repository publishes about itself has to list itself", p.Name)
+	}
+
+	for _, f := range []struct {
+		field           string
+		entry, manifest string
+	}{
+		{"version", entry.Version, p.Version},
+		{"description", entry.Description, p.Description},
+		{"author.name", entry.Author.Name, p.Author.Name},
+	} {
+		if f.entry != f.manifest {
+			t.Errorf("marketplace.json %s = %q, plugin.json says %q", f.field, f.entry, f.manifest)
+		}
+	}
+}
+
+// TestMarketplaceSourceResolvesToThisPack checks that the entry points at the
+// plugin sitting next to it. `source` is the only field that is not a copy of
+// plugin.json, which is exactly why nothing else here would catch it being
+// wrong: a self-listing marketplace whose source has drifted installs a
+// different pack than the one whose version and description it advertises, and
+// the install still succeeds.
+func TestMarketplaceSourceResolvesToThisPack(t *testing.T) {
+	p := loadPlugin(t)
+
+	m, err := skillpack.LoadMarketplace(root)
+	if err != nil {
+		t.Fatalf("loading marketplace: %v", err)
+	}
+	entry, ok := m.Entry(p.Name)
+	if !ok {
+		t.Fatalf(".claude-plugin/marketplace.json lists no plugin named %q", p.Name)
+	}
+
+	if entry.Source == "" {
+		t.Fatal("marketplace entry has no source; Claude Code would not know what to install")
+	}
+	if !strings.HasPrefix(entry.Source, ".") {
+		t.Fatalf("marketplace source = %q, want a path relative to the repository root; this marketplace exists to publish the pack it ships with, and a remote source would publish somebody else's copy of it", entry.Source)
+	}
+
+	resolved, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(entry.Source)))
+	if err != nil {
+		t.Fatalf("resolving marketplace source: %v", err)
+	}
+	packRoot, err := filepath.Abs(root)
+	if err != nil {
+		t.Fatalf("resolving pack root: %v", err)
+	}
+	if resolved != packRoot {
+		t.Errorf("marketplace source %q resolves to %s, want the repository root %s", entry.Source, resolved, packRoot)
+	}
+
+	// And the plugin it names is really there — the check that would still fail
+	// if the source pointed at a sibling directory that resolves fine and holds
+	// no plugin.
+	installed, err := skillpack.LoadPlugin(resolved)
+	if err != nil {
+		t.Fatalf("marketplace source %q has no readable plugin manifest: %v", entry.Source, err)
+	}
+	if installed.Name != entry.Name {
+		t.Errorf("marketplace source %q holds the plugin %q, but the entry advertises %q", entry.Source, installed.Name, entry.Name)
+	}
+}
+
+// buddyMajorRef matches the buddy-mcp major the documentation commits to,
+// written as `buddy-mcp v2` or `buddy-mcp v2+`.
+var buddyMajorRef = regexp.MustCompile(`buddy-mcp v(\d+)`)
+
+// buddyMajorTheSkillsExpect reads the major out of the pack's own prose. The
+// skills describe a specific tool surface — `buddy_advise` exists from v2, the
+// figures in buddy-operations.md are v2 figures — so the range .mcp.json
+// installs has to agree with the docs, and the docs are the side a reader
+// trusts.
+func buddyMajorTheSkillsExpect(t *testing.T) int {
+	t.Helper()
+
+	found := map[int]string{}
+	err := filepath.WalkDir(filepath.Join(root, "skills"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || filepath.Ext(path) != ".md" {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for i, line := range strings.Split(string(raw), "\n") {
+			for _, m := range buddyMajorRef.FindAllStringSubmatch(line, -1) {
+				major, convErr := strconv.Atoi(m[1])
+				if convErr != nil {
+					return convErr
+				}
+				if _, seen := found[major]; !seen {
+					found[major] = fmt.Sprintf("%s:%d", path, i+1)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scanning skills for the expected buddy-mcp major: %v", err)
+	}
+
+	switch len(found) {
+	case 0:
+		t.Fatal("no skill document names a buddy-mcp major version, so there is nothing to check .mcp.json against; say which major the tool surface described here belongs to")
+	case 1:
+		for major := range found {
+			return major
+		}
+	}
+
+	var where []string
+	for major, at := range found {
+		where = append(where, fmt.Sprintf("v%d (%s)", major, at))
+	}
+	sort.Strings(where)
+	t.Fatalf("the skills name more than one buddy-mcp major: %s; the docs have to agree before .mcp.json can be checked against them", strings.Join(where, ", "))
+	return 0
+}
+
+// TestMCPConfigDeclaresBuddyServer pins the dependency the whole pack rests on.
+// Every skill ends by calling `buddy_observe`, and before this file existed the
+// server behind that call was wired by absolute path in one person's global
+// config — so the pack looked self-contained and was not installable by anyone
+// else. The declaration only helps if it stays true.
+func TestMCPConfigDeclaresBuddyServer(t *testing.T) {
+	cfg, err := skillpack.LoadMCPConfig(root)
+	if err != nil {
+		t.Fatalf("loading .mcp.json: %v", err)
+	}
+
+	// The map key is the server's name, and it is what the tool names in every
+	// skill are namespaced by. Rename it and `buddy_observe` addresses nothing.
+	server, ok := cfg.Servers["buddy"]
+	if !ok {
+		var names []string
+		for name := range cfg.Servers {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		t.Fatalf(".mcp.json declares no server named \"buddy\" (found: %s); the skills call `buddy_*` tools under that name", strings.Join(names, ", "))
+	}
+
+	raw, ok := server.NPXSpec()
+	if !ok {
+		t.Fatalf(".mcp.json runs the buddy server as %q, not through npx; the pack ships a resolvable specifier so that installing the pack installs the server", server.Command)
+	}
+
+	// The specifier has to be the git form. buddy-mcp is distributed as GitHub
+	// releases and is never published to the npm registry, so `buddy-mcp@^2` —
+	// the form this file used to carry — asks npm for a package that is not
+	// there. npx reports a 404 and the buddy server never starts, which surfaces
+	// to a user as every `buddy_*` tool being absent rather than as an install
+	// failure they can read.
+	spec, err := skillpack.ParseGitHubSpec(raw)
+	if err != nil {
+		t.Fatalf(".mcp.json: %v", err)
+	}
+	if spec.Owner != buddyOwner || spec.Repo != buddyRepo {
+		t.Errorf(".mcp.json installs %s/%s; the pack targets %s/%s, and the other companion projects answer to a different tool surface entirely", spec.Owner, spec.Repo, buddyOwner, buddyRepo)
+	}
+
+	// A caret range and not a floating one. A branch ref, `*` or no ref at all
+	// resolves to whatever that repository holds most recently, which means the
+	// next major — the release that is allowed to change the shape of the buddy
+	// tools — arrives on its own, into a pack whose skills still document the old
+	// surface, and it arrives at a different time for every user because npx
+	// resolves at launch. Every skill here calls `buddy_advise` and
+	// `buddy_observe` with a specific argument shape; a major that changes that
+	// shape turns each of those calls into an error the model then has to work
+	// around mid-task. A caret takes the fixes inside the major and refuses the
+	// break; the break becomes a deliberate edit to this file, made alongside the
+	// docs that describe the new surface.
+	major, ok := skillpack.CaretMajor(spec.Range)
+	if !ok {
+		t.Fatalf(".mcp.json pins %s to %q, want a caret range like \"^2\"; a floating range upgrades across a major on its own, at a different moment for every user", spec.Repo, spec.Range)
+	}
+	if want := buddyMajorTheSkillsExpect(t); major != want {
+		t.Errorf(".mcp.json installs %s ^%d but the skills document v%d; one of the two is describing a tool surface that will not be there", spec.Repo, major, want)
+	}
+
+	// What this range resolves against lives outside the repository, and no test
+	// here can reach it: npm matches `#semver:^2` against the *git tags* of
+	// DragonSecurity/buddy-mcp, clones the highest tag inside the range, and runs
+	// that tag's `prepare` script to build it. So the assertions above are only
+	// half the contract. The other half is that buddy-mcp keeps pushing `vN.N.N`
+	// tags for every release and keeps its build wired to `prepare` rather than
+	// `prepublishOnly`, which never runs for a consumer installing from git. If a
+	// release ships with no tag, this file still reads as correct and npx resolves
+	// to the previous one; if the build moves off `prepare`, npx resolves the
+	// right tag and installs a package with no compiled output. Neither shows up
+	// here, and both are why this comment is here instead of a network call.
+}
+
+// buddyOwner and buddyRepo are the GitHub coordinates .mcp.json installs the
+// companion server from. They are the distribution channel: the pack does not
+// resolve buddy-mcp by name against any registry, it clones a tag out of this
+// repository.
+const (
+	buddyOwner = "DragonSecurity"
+	buddyRepo  = "buddy-mcp"
+)
 
 // TestSkillNameMatchesDirectory guards the one mismatch that breaks invocation:
 // Claude Code addresses a skill by its frontmatter name, humans and every

@@ -41,7 +41,29 @@ function resolveServer() {
       /* not there, or not ours to parse -- try the next signal */
     }
   }
-  return { command: 'buddy-mcp', args: [] }; // global npm install puts this on PATH
+  // The declaration this pack ships, which for anyone who installed from the
+  // marketplace is the only one there is. Claude Code registers a plugin's
+  // .mcp.json for the session without writing it into the user's own MCP
+  // config, so the loop above finds nothing on exactly the install path the
+  // README documents, and without this the hook falls through to a name that is
+  // only on PATH if someone put it there. Located from this file rather than
+  // from CLAUDE_PLUGIN_ROOT so it still resolves when the hook is run by hand
+  // out of a checkout.
+  try {
+    const cfg = JSON.parse(readFileSync(new URL('../.mcp.json', import.meta.url), 'utf8'));
+    const server = cfg?.mcpServers?.buddy;
+    if (server?.command) {
+      return { command: server.command, args: server.args ?? [] };
+    }
+  } catch {
+    /* not next to us, or not ours to parse -- try the next signal */
+  }
+  // Last resort. buddy-mcp is never published to the npm registry, so this name
+  // is on PATH only if the user installed one globally themselves, out of a
+  // checkout or from the same git spec `.mcp.json` declares. Spawning a command
+  // that is not there costs nothing: the error handler below fails open like
+  // every other path through this hook.
+  return { command: 'buddy-mcp', args: [] };
 }
 
 const { command, args } = resolveServer();

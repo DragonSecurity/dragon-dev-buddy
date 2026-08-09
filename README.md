@@ -11,30 +11,138 @@ streaks, and learns which of your skills fits which kind of task.
 
 ## Install
 
+**From the marketplace (Claude Code):**
+
+```sh
+/plugin marketplace add DragonSecurity/dragon-dev-buddy
+/plugin install dragon-dev-buddy
+```
+
+The first command registers this repository as a marketplace; the second installs
+the pack out of it. The marketplace entry lives here, in
+`.claude-plugin/marketplace.json`, rather than in some index maintained
+elsewhere — a listing kept in a second place is a second copy of the version
+string with nothing holding it in step, and ours had already drifted.
+
+Leave `autoUpdate` on and Claude Code re-pulls this repository on startup and
+compares the `version` in the manifest against the version you have installed. A
+higher number is the entire update signal: nothing inspects the skills, the
+changelog or the tag. A release that ships new prose and forgets the bump is a
+release nobody receives, which is why the version is now enforced by CI rather
+than remembered — `go test ./...` fails when `plugin.json`, `marketplace.json`
+and `CHANGELOG.md` disagree about what the current version is.
+
 **From a checkout (Claude Code):**
 
 ```sh
 git clone https://github.com/DragonSecurity/dragon-dev-buddy.git
 cd dragon-dev-buddy
-./scripts/build-plugin.sh          # writes dist/dragon-dev-buddy.plugin
-unzip dist/dragon-dev-buddy.plugin -d ~/.claude/plugins/cache/local/dragon-dev-buddy/1.0.0/
+bundle="$(./scripts/build-plugin.sh)"   # dist/dragon-dev-buddy-<version>.plugin
+version="${bundle##*-}"; version="${version%.plugin}"
+unzip "$bundle" -d ~/.claude/plugins/cache/local/dragon-dev-buddy/"$version"/
 ```
 
+The version comes back out of the filename the script just printed rather than
+being typed in a second time. It is whatever `.claude-plugin/plugin.json`
+currently says, and the cache directory is keyed by it — a directory that
+disagrees with the bundle inside it is how you end up debugging a build you are
+not running, and an unset variable there quietly unpacks everything one level up
+where nothing looks for it.
+
 **Claude desktop / Cowork:** Customize → Plugins → `+` → Create plugin → Upload
-plugin → pick `dist/dragon-dev-buddy.plugin`.
+plugin → pick the `dist/dragon-dev-buddy-<version>.plugin` the build just wrote.
 
 Then run `dragon-dev-buddy:buddy-setup` once per project. Every other skill reads
 the config it writes, so nothing else has to ask you what your stack is again.
 
+Installing the pack also brings the buddy server, because `.mcp.json` ships
+inside the bundle and declares it. That server is compiled from source the first
+time it starts, so the machine needs `git` and a Node toolchain and the first
+launch is slow; [The buddy](#the-buddy) says why and how much.
+
+### Versioning
+
+The pack is semver, and the thing being versioned is the contract, not the word
+count. A skill pack has two kinds of consumer — you, addressing a skill by name,
+and the buddy server the skills talk to — so those are the two things a major
+bump is reserved for:
+
+- **Major** — a skill is renamed or removed, or the buddy contract changes: a
+  tool this pack calls takes a different shape, or the required `buddy-mcp` major
+  moves. Something outside the pack that referred to it now refers to nothing.
+- **Minor** — a new skill, or a new mode inside an existing one. Everything that
+  worked before still works and still answers to the same name.
+- **Patch** — corrections that leave every name and every promise where it was.
+
+Rewriting a workflow, sharpening a description or replacing a whole reference
+file is a minor or a patch however much of the diff it accounts for, because
+nothing that pointed at the pack has to change. Conversely, renaming one skill is
+a major even though it is a one-line diff, because every `CLAUDE.md`, hook and
+habit that names it breaks at once.
+
+What changed in each release is in [CHANGELOG.md](CHANGELOG.md). A release of
+this pack is a `vX.Y.Z` tag cut from `main`, which
+`.github/workflows/release.yml` turns into a GitHub release with the bundle
+attached — this pack is not published to a package registry any more than the
+buddy server is. [CONTRIBUTING.md](CONTRIBUTING.md#releasing) has the steps and
+the three files that have to agree before the tag exists.
+
 ## The buddy
 
-These skills assume the `buddy` MCP server is registered. From your
-[buddy-mcp](https://github.com/DragonSecurity/buddy-mcp) checkout:
+The pack ships its own MCP server declaration. `.mcp.json` here declares the
+`buddy` stdio server as `npx -y github:DragonSecurity/buddy-mcp#semver:^2`, so
+installing the plugin brings a compatible companion with it. Before that the
+server was wired by absolute path in one person's global config, which made the
+dependency invisible: the pack read as installable and was not.
+
+That specifier is a git spec, not a registry one. buddy-mcp is never published to
+the npm registry — its releases are GitHub releases, and its **git tags are the
+distribution channel**. `#semver:^2` resolves the range against the tags in that
+repository, so `v2.1.0` is what `^2` picks up today and a `v3.0.0` tag is outside
+it. The caret means exactly what it means on the registry — the same releases,
+resolved from a different place.
+
+Installing from a tag means the server is built on your machine, and that cost is
+real rather than hidden. npm clones the matching tag, installs its
+devDependencies — TypeScript among them — and runs its `prepare` script, which is
+the compile. So the first launch after a new tag lands takes tens of seconds
+instead of none, and the machine needs `git` and a full Node toolchain present,
+not just a Node runtime able to execute a prebuilt file. npm caches the built
+package, so the build is paid once per version rather than once per session; a
+sandbox with no network or no `git` is where this fails, and it fails at the
+first `buddy_status` rather than at install time.
+
+The range is a major on purpose. This pack requires **buddy-mcp 2.x** and takes
+any tag inside it, so fixes and new tools arrive without a release here. A
+breaking change to the shape of the buddy tools is a buddy-mcp 3.0, and `^2`
+declines it rather than letting every skill in the pack start calling a contract
+that no longer exists on a machine where nothing was changed. That is what the
+major is *for*: it is the only signal buddy-mcp has that the tool contract these
+skills are written against has moved, and the caret is what turns the signal into
+a refusal instead of a broken session. Moving to a buddy major is therefore a
+deliberate release of this pack — the range moves, the skills get checked against
+the new tools, and the pack takes a major bump of its own.
+
+If you are working on buddy-mcp itself you want the server running from your
+checkout rather than from a tag:
 
 ```sh
 npm install && npm run build
-claude mcp add buddy --scope user -- node /absolute/path/to/buddy-mcp/dist/index.js
+claude mcp add buddy-dev --scope user -- node /absolute/path/to/buddy-mcp/dist/index.js
 ```
+
+That entry does not replace the one this pack declares — it joins it. Claude Code
+registers a plugin's servers under `plugin:<plugin>:<server>` and suppresses a
+duplicate only when the command matches exactly, so `node …/dist/index.js` and
+`npx -y github:…` are two different servers and both are started, each offering a
+full set of `buddy_*` tools. They also share one buddy: neither declaration sets
+`BUDDY_HOME`, so both open `~/.buddy-mcp/buddy.db`. Every tool call there loads
+the buddy row, edits it in memory and writes the whole row back, so two processes
+interleaving that lose one another's XP, level and daily-bonus flag, and one task
+reported to both tool sets is recorded twice with nothing afterwards to tell the
+duplicate from the real observation. Run one at a time — either remove the
+checkout entry, or disable this plugin's server from `/plugins` while you are
+working on the server.
 
 Tools used by this pack: `buddy_advise` before work, `buddy_observe` after it,
 and `buddy_status`, `buddy_skills`, `buddy_rename` for looking after the
@@ -58,8 +166,13 @@ at all. Hooks are enforced by the client, which is why the calls live here.
 
 Both hooks fail open and silent: no buddy, no server, or a protocol change means
 they emit nothing rather than wedging your session. `buddy-session-start.mjs`
-finds the server via `$BUDDY_MCP_PATH`, then your MCP config, then `buddy-mcp` on
-`PATH`. The `Stop` gate logs every decision to `~/.claude/buddy-gate.log`.
+finds the server via `$BUDDY_MCP_PATH`, then your own MCP config, then the
+`.mcp.json` shipped beside it in the bundle — which is the only declaration a
+marketplace install has, because Claude Code registers a plugin's servers for the
+session without writing them into your config — and finally a `buddy-mcp` on
+`PATH`, which exists only if you installed one globally yourself, from a checkout
+or from the same git spec, since there is nothing on the registry to install. The
+`Stop` gate logs every decision to `~/.claude/buddy-gate.log`.
 
 The gate tracks the turn with a marker file under `~/.claude/buddy-gate/` rather
 than by reading the transcript. `Stop` races the transcript writer, and since

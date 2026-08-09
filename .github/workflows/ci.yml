@@ -22,6 +22,74 @@ jobs:
       # this repo's own secrets-and-config-audit would flag anything less.
       # Renovate keeps the pins current.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The release-metadata step below compares this branch against the
+          # branch it targets, which needs the base branch to be present
+          # locally. The pack is documentation, so the full history is small
+          # and cheaper than teasing a single ref out of a shallow clone.
+          fetch-depth: 0
+
+      # Runs first because it is the cheapest check and the one whose failure is
+      # least obvious from reading the diff.
+      - name: Release metadata agrees with the change
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          manifest=.claude-plugin/plugin.json
+          base="origin/$BASE_REF"
+
+          version_of() {
+            sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+          }
+          # A released section is "## 1.1.0 — 2026-08-09"; the very first one was
+          # a bare "## 1.0.0". Both count, and "## 1.1.0-rc1" deliberately does
+          # not satisfy a bump to 1.1.0.
+          changelog_has() {
+            awk -v heading="## $1" '
+              $0 == heading || index($0, heading " ") == 1 { found = 1 }
+              END { exit found ? 0 : 1 }
+            ' CHANGELOG.md
+          }
+
+          new="$(version_of < "$manifest")"
+          old="$(git show "$base:$manifest" | version_of)"
+          if [ -z "$new" ]; then
+            echo "::error file=$manifest::no version in the manifest"
+            exit 1
+          fi
+
+          if [ "$new" != "$old" ]; then
+            # A release nobody wrote down is a release nobody can decide whether
+            # to take. The changelog section is the only description of the
+            # version that reaches an installer.
+            if ! changelog_has "$new"; then
+              echo "::error file=CHANGELOG.md::version goes $old -> $new but CHANGELOG.md has no '## $new' section"
+              exit 1
+            fi
+            echo "version $old -> $new, changelog section present"
+            exit 0
+          fi
+
+          # The other direction, and the one that actually bites. An autoupdating
+          # marketplace decides whether to pull by comparing version strings, so
+          # contents that move under a version that does not is a change no
+          # installed copy can ever receive. Only the paths that end up in the
+          # bundle and change what the plugin does are checked — README and
+          # LICENSE ride along in the zip without altering behaviour.
+          # config.example.json is on the checked side of that line even though
+          # it is not a skill: buddy-setup writes .dragon-buddy/config.json from
+          # it, so a key added there is a key every later skill goes looking for
+          # in a config that was written before the key existed.
+          shipped=(skills hooks .mcp.json config.example.json)
+          if ! git diff --quiet "$base" HEAD -- "${shipped[@]}"; then
+            echo "::error file=$manifest::${shipped[*]} — one of these changed but the version is still $new; bump it, or an autoupdating marketplace can never pull this"
+            git diff --name-only "$base" HEAD -- "${shipped[@]}"
+            exit 1
+          fi
+          echo "version unchanged at $new, and nothing shipped in the bundle moved"
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
@@ -48,11 +116,23 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # The bundle's filename carries the version, so a literal path here would
+      # go stale on every release. The script prints the path it wrote on stdout
+      # and nothing else, which is exactly what the upload step needs.
+      #
+      # The path is assigned before it is echoed on purpose: a command
+      # substitution that fails inside an argument to a successful echo leaves
+      # the step green, and the build failure would surface later as a
+      # mystifying empty upload path.
       - name: Build
-        run: ./scripts/build-plugin.sh
+        id: build
+        run: |
+          set -euo pipefail
+          artifact="$(./scripts/build-plugin.sh)"
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dragon-dev-buddy-plugin
-          path: dist/dragon-dev-buddy.plugin
+          path: ${{ steps.build.outputs.artifact }}
           if-no-files-found: error

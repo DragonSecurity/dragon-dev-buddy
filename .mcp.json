@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "buddy": {
+      "command": "npx",
+      "args": ["-y", "github:DragonSecurity/buddy-mcp#semver:^2"]
+    }
+  }
+}
