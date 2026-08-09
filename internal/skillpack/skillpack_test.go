@@ -1,6 +1,7 @@
 package skillpack_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -735,5 +736,66 @@ func TestReadmeSkillCountIsCurrent(t *testing.T) {
 	want := fmt.Sprintf("%d skills", len(loadSkills(t)))
 	if !strings.Contains(readme, want) {
 		t.Errorf("README.md does not say %q; update the count", want)
+	}
+}
+
+// TestObserveGateMatcherCoversTheRealToolName pins the PostToolUse matcher
+// against the name the buddy's observe tool actually has at runtime.
+//
+// The gate marks a session dirty on an edit and clears it when buddy_observe
+// runs. The clear never fired: the matcher read "buddy_observe", but an MCP tool
+// is addressed as "mcp__<server>__<tool>", so nothing ever matched and every
+// turn that touched a file blocked on Stop whether or not it had recorded. The
+// hook itself was correct throughout — it was never invoked — which is exactly
+// the failure a matcher typo produces, and it is silent by construction.
+func TestObserveGateMatcherCoversTheRealToolName(t *testing.T) {
+	raw := readFile(t, "hooks/hooks.json")
+
+	var cfg struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("hooks/hooks.json does not parse: %v", err)
+	}
+
+	// The names Claude Code passes as tool_name. The qualified form is the one
+	// that regressed; the bare edit tools are here so a fix for it cannot break
+	// the marking half.
+	toolNames := []string{
+		"mcp__buddy__buddy_observe",
+		"Edit",
+		"Write",
+		"MultiEdit",
+		"NotebookEdit",
+	}
+
+	entries := cfg.Hooks["PostToolUse"]
+	if len(entries) == 0 {
+		t.Fatal("hooks/hooks.json declares no PostToolUse hook, so the gate can never clear")
+	}
+
+	for _, name := range toolNames {
+		matched := false
+		for _, e := range entries {
+			// Anchored, because the client matches the whole tool name rather
+			// than a substring of it. That is the entire bug: "buddy_observe"
+			// occurs inside "mcp__buddy__buddy_observe", so it looks correct to
+			// any substring check — including Go's own MatchString — and a test
+			// written the obvious way passes against the matcher that shipped
+			// broken. The anchors are what make this test able to fail.
+			re, err := regexp.Compile(`^(?:` + e.Matcher + `)$`)
+			if err != nil {
+				t.Fatalf("matcher %q does not compile: %v", e.Matcher, err)
+			}
+			if re.MatchString(name) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Errorf("no PostToolUse matcher matches tool_name %q; the gate cannot see it", name)
+		}
 	}
 }
