@@ -53,9 +53,16 @@ Ask only when you are about to write a memory and cannot tell:
    ```sh
    mkdir -p .dragon-buddy/memories && : > .dragon-buddy/memories/.guard-probe
    git add -f .dragon-buddy/memories/.guard-probe
-   git commit -m "guard probe" --dry-run   # must fail
+   "$hooks_dir/pre-commit"; echo "exit=$?"   # must be 1
    git reset -q .dragon-buddy/memories/.guard-probe && rm .dragon-buddy/memories/.guard-probe
    ```
+
+   Run the hook directly. **`git commit --dry-run` does not execute pre-commit
+   hooks** — it exits 0 against a guard that would have refused, so using it here
+   reports a working install and proves nothing, which is the exact failure this
+   step exists to catch. Attempting a real commit does exercise the hook, but if
+   the guard is broken that attempt *succeeds* and leaves a commit to unpick.
+   Invoking the script is conclusive and cannot commit anything.
 
    An install that is not observed refusing something has not been tested.
 

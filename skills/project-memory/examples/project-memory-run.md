@@ -32,14 +32,15 @@ $ chmod +x ~/.config/git/hooks/pre-commit
 
 ```sh
 $ : > .dragon-buddy/memories/.guard-probe && git add -f .dragon-buddy/memories/.guard-probe
-$ git commit -m "guard probe" --dry-run
+$ ~/.config/git/hooks/pre-commit; echo "exit=$?"
 pre-commit: refusing to commit project memories.
 
   .dragon-buddy/memories/.guard-probe
+exit=1
 $ git reset -q .dragon-buddy/memories/.guard-probe && rm .dragon-buddy/memories/.guard-probe
 ```
 
-> Observed refusing something. An install that has not been seen to block is not an install that works.
+> Running the hook directly, not `git commit --dry-run` — that does not execute pre-commit hooks at all and exits 0 against a guard that would have refused, so it would report a working install while proving nothing. Observed refusing something. An install that has not been seen to block is not an install that works.
 
 ---
 

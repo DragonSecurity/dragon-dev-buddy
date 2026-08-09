@@ -4,6 +4,18 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.2.1 — 2026-08-10
+
+### Fixed
+
+- `project-memory` told the user to verify the commit guard with
+  `git commit --dry-run`, which **does not execute pre-commit hooks**. It exits 0
+  against a guard that would have refused, so the verification step reported a
+  working install and proved nothing — the precise failure the step exists to
+  catch, written into the instructions for catching it. It now runs the hook
+  script directly, which is conclusive and, unlike a real commit attempt, cannot
+  leave a commit behind when the guard is broken.
+
 ## 1.2.0 — 2026-08-09
 
 ### Added
