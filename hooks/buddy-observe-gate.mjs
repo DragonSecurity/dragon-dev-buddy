@@ -37,8 +37,7 @@ function markPath(sessionId) {
 }
 
 /** Local time, to match the timestamps already in the log. */
-function stamp() {
-  const d = new Date();
+function stamp(d = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
   return (
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
@@ -77,11 +76,21 @@ function postTool(payload) {
   const tool = payload.tool_name ?? '';
   const path = markPath(payload.session_id);
 
+  // Both transitions are logged, not just the Stop decision they feed. A block
+  // on a turn that did call buddy_observe is indistinguishable, from the Stop
+  // entry alone, from a block on a turn that never recorded anything -- the
+  // question is always which mark was written after the clear, and by what. The
+  // session id is the discriminator: a background subagent whose PostToolUse
+  // arrives under this session's id re-dirties a turn that already cleared, and
+  // nothing but these two lines can show it happening.
   if (EDIT_TOOLS.has(tool)) {
     mkdirSync(STATE, { recursive: true });
     writeFileSync(path, tool);
+    log({ event: 'mark', tool, session: payload.session_id ?? null });
   } else if (tool.endsWith('buddy_observe') && !failed(payload)) {
+    const had = existsSync(path);
     rmSync(path, { force: true });
+    log({ event: 'clear', tool, session: payload.session_id ?? null, had });
   }
 }
 
@@ -91,15 +100,25 @@ function stop(payload) {
 
   const path = markPath(payload.session_id);
   if (!existsSync(path)) {
-    log({ event: 'stop', block: false });
+    log({ event: 'stop', block: false, session: payload.session_id ?? null });
     return;
+  }
+
+  // The mark's own mtime is the evidence: a block whose mark was written after
+  // this turn's clear is a re-dirty, and one whose mark predates it is a turn
+  // that genuinely never recorded. Read it before the unlink, or it is gone.
+  let markedAt = null;
+  try {
+    markedAt = stamp(new Date(statSync(path).mtimeMs));
+  } catch {
+    /* the mark is the point, not its timestamp */
   }
 
   // Clear before blocking: failing to nag beats wedging the session.
   rmSync(path, { force: true });
   prune();
 
-  log({ event: 'stop', block: true });
+  log({ event: 'stop', block: true, session: payload.session_id ?? null, markedAt });
   process.stdout.write(JSON.stringify({ decision: 'block', reason: REASON }));
 }
 
