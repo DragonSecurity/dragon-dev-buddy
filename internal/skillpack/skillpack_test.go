@@ -764,7 +764,12 @@ func TestObserveGateMatcherCoversTheRealToolName(t *testing.T) {
 	// that regressed; the bare edit tools are here so a fix for it cannot break
 	// the marking half.
 	toolNames := []string{
+		// Both installs. The first is a hand-registered server, the second is what
+		// this pack's own .mcp.json produces — which is the name in use the moment
+		// anyone follows the documented install, so a matcher that covers only the
+		// first is broken for exactly the users who did as they were told.
 		"mcp__buddy__buddy_observe",
+		"mcp__plugin_dragon-dev-buddy_buddy__buddy_observe",
 		"Edit",
 		"Write",
 		"MultiEdit",

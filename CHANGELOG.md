@@ -4,6 +4,21 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.1.3 — 2026-08-09
+
+### Fixed
+
+- The gate's nag named `mcp__buddy__buddy_observe` outright, which is only the
+  tool's name when the buddy server is registered by hand. Installed the
+  documented way, this pack declares the server itself and the tool is
+  `mcp__plugin_dragon-dev-buddy_buddy__buddy_observe` — so the instruction sent
+  the model looking for a tool that was not in its list, and the `ToolSearch`
+  query it suggested returned nothing. The message names `buddy_observe` now and
+  says the prefix depends on the install.
+
+- The matcher test only covered the hand-registered name. It covers both, so a
+  future edit cannot fix one install by breaking the other.
+
 ## 1.1.2 — 2026-08-09
 
 ### Fixed

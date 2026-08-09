@@ -24,12 +24,18 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
 const STATE = join(homedir(), '.claude', 'buddy-gate');
 const LOG = join(homedir(), '.claude', 'buddy-gate.log');
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+// The tool is named without a server prefix on purpose. It is addressed as
+// mcp__buddy__buddy_observe when the server is registered by hand and as
+// mcp__plugin_dragon-dev-buddy_buddy__buddy_observe when this pack declares it,
+// and naming either one sends the model looking for a tool that is not in its
+// list on half of all installs. The bare name is the part that never moves.
 const REASON =
   'This turn changed code but never recorded it with the buddy. ' +
-  'Call mcp__buddy__buddy_observe with a one-sentence summary of what you did, ' +
+  'Call the buddy_observe tool with a one-sentence summary of what you did, ' +
   'passing skills_used if you invoked any skills, then relay the reaction to the ' +
-  'user verbatim. If the tool is not in your tool list it is deferred -- run ' +
-  'ToolSearch with query "select:mcp__buddy__buddy_observe" first.';
+  'user verbatim. Its full name carries a server prefix that depends on how the ' +
+  'buddy is installed. If it is not in your tool list it is deferred -- run ' +
+  'ToolSearch with query "buddy_observe" first.';
 
 function markPath(sessionId) {
   const safe = String(sessionId ?? '').replace(/[^A-Za-z0-9_-]/g, '');
