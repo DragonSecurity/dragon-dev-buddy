@@ -4,6 +4,19 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.1.1 — 2026-08-09
+
+### Fixed
+
+- The observe gate logged only its Stop decision, which made a false nag
+  impossible to diagnose: a block on a turn that *did* call `buddy_observe` and a
+  block on a turn that recorded nothing produce the same single line. The mark
+  and clear transitions are logged now, each with the session id that caused
+  them, and a block records the mark's own mtime. That is what distinguishes a
+  turn that never recorded from one whose mark was rewritten after it cleared —
+  which is what a background subagent does when its `PostToolUse` arrives under
+  the parent session's id.
+
 ## 1.1.0 — 2026-08-09
 
 ### Added
