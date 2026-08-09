@@ -49,7 +49,8 @@ nothing to add to `settings.json`.
 | Event | What it does |
 | --- | --- |
 | `SessionStart` | Calls `buddy_status` and puts the card in context, so the check-in happens whether or not the model remembers to ask. |
-| `Stop` | Blocks once if a turn edited files but never called `buddy_observe`, so work does not go unrecorded. |
+| `PostToolUse` | Marks the session dirty on an edit, clears the mark on `buddy_observe`. |
+| `Stop` | Blocks once if the session is still dirty, so work does not go unrecorded. |
 
 An instruction in `CLAUDE.md` is advisory and gets skipped — most often when the
 client defers MCP tools behind `ToolSearch`, so `buddy_*` is not in the tool list
@@ -59,6 +60,13 @@ Both hooks fail open and silent: no buddy, no server, or a protocol change means
 they emit nothing rather than wedging your session. `buddy-session-start.mjs`
 finds the server via `$BUDDY_MCP_PATH`, then your MCP config, then `buddy-mcp` on
 `PATH`. The `Stop` gate logs every decision to `~/.claude/buddy-gate.log`.
+
+The gate tracks the turn with a marker file under `~/.claude/buddy-gate/` rather
+than by reading the transcript. `Stop` races the transcript writer, and since
+`buddy_observe` is normally the last tool call of a turn, its entry is the one
+most likely to be missing when the gate reads — which nagged turns that had
+already recorded, and cost the buddy a duplicate observation each time.
+`PostToolUse` fires when the tool runs, so there is nothing to race.
 
 The two halves feed each other. `buddy_observe(skills_used)` is what trains the
 ranking that `buddy_advise` returns, which is why every skill in this pack passes
