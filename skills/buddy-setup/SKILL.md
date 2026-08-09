@@ -48,22 +48,30 @@ If the user already described the project in this conversation, use their words 
    - Anything you already know is weak and have not gotten to yet?
    - Which security tooling is in play, if any: SCA, SAST, secret scanning.
 
-5. **Ask about engagement scope, only if relevant.** If this is the user's own code and they are not doing offensive work, skip this entirely and leave the `engagement` block empty. Ask only if they mention pentesting, a bug bounty, a client, or a red team exercise:
+5. **Ask the fleet questions, only if relevant.** If the survey found network or device configuration — Ansible network roles, an Oxidized or RANCID backup tree, a NetBox or Nautobot export, vendor config files, IaC for firewalls or routing — or the user mentions switches, routers, firewalls or a device fleet, ask these together and fill the `fleet` block:
+   - Which vendors and platforms, and roughly how many devices in which classes?
+   - Where does device config come from and get backed up to, and is there a golden config or template?
+   - What out-of-band access exists if a change cuts the network path? This is the one that matters most — `change-window` cannot gate a self-severing change without it.
+   - Is there a change window, and who approves a production network change?
+
+   If none of that applies, leave `fleet.managed` false and the block empty. No other skill in the pack reads it.
+
+6. **Ask about engagement scope, only if relevant.** If this is the user's own code and they are not doing offensive work, skip this entirely and leave the `engagement` block empty. Ask only if they mention pentesting, a bug bounty, a client, or a red team exercise:
    - What is in scope, precisely? Hosts, domains, repos, accounts.
    - What is explicitly out of scope?
    - What authorizes this work? A ticket, an SOW, a written approval. Record the reference, not the document.
 
    Explain plainly why you are asking: `vuln-triage` will not write proof-of-concept exploit code without a recorded scope, and `pentest-report` will not produce a client deliverable without one.
 
-6. **Summarize and confirm.** Write back the profile in plain prose, not JSON. Six lines maximum. Ask: "Saving this. Anything wrong?"
+7. **Summarize and confirm.** Write back the profile in plain prose, not JSON. Six lines maximum. Ask: "Saving this. Anything wrong?"
 
-7. **Write the config.** Create `.dragon-buddy/config.json` using the structure in `config.example.json` at the pack root. Fill every key you have a real answer for. Leave `[BRACKET]` placeholders only where the user genuinely did not know. Add `.dragon-buddy/` to `.gitignore` if the `engagement` block names a client or contains anything the repo should not carry.
+8. **Write the config.** Create `.dragon-buddy/config.json` using the structure in `config.example.json` at the pack root. Fill every key you have a real answer for. Leave `[BRACKET]` placeholders only where the user genuinely did not know. Add `.dragon-buddy/` to `.gitignore` if the `engagement` block names a client or contains anything the repo should not carry.
 
-8. **Hatch the buddy.** Call `buddy_status`. On first ever use this hatches a companion with a name and personality rolled once and kept for life. Show the returned card to the user exactly as it comes back. Offer `buddy_rename` if they want to name it themselves, and mention that personality and progress survive a rename.
+9. **Hatch the buddy.** Call `buddy_status`. On first ever use this hatches a companion with a name and personality rolled once and kept for life. Show the returned card to the user exactly as it comes back. Offer `buddy_rename` if they want to name it themselves, and mention that personality and progress survive a rename.
 
    If the `buddy` MCP server is not connected, say so once, point at the install line in the pack README, and carry on. The pack is fully functional without it.
 
-9. **Point at what is next.** Recommend exactly three skills for this specific repo, one line each, using the routing table in `references/setup-routing.md`. A public service with PII gets different advice than an internal CLI tool.
+10. **Point at what is next.** Recommend exactly three skills for this specific repo, one line each, using the routing table in `references/setup-routing.md`. A public service with PII gets different advice than an internal CLI tool.
 
 ## Output format
 
@@ -72,6 +80,7 @@ Read off the repo: [stack summary]
 Exposure: [level] · Data: [sensitivity] · Compliance: [list or none]
 Trust boundaries: [list or "to be derived in threat-model"]
 Tooling: tests `[cmd]` · SCA [tool] · SAST [tool] · secrets [tool]
+Fleet: [vendors, device count, backup system, out-of-band — or omit the line entirely if not managed]
 Engagement: [scope reference, or "internal work, no engagement recorded"]
 
 Saved to .dragon-buddy/config.json

@@ -3,8 +3,8 @@
 A Claude plugin for people who write code that has to hold up under attack, with a
 persistent companion attached.
 
-17 skills covering the loop from *what could go wrong* through *ship it* to
-*write up what happened*. Every skill asks your
+21 skills covering the loop from *what could go wrong* through *ship it* to
+*write up what happened*, for code and for the network it runs on. Every skill asks your
 [buddy-mcp](https://github.com/DragonSecurity/buddy-mcp) companion what to load
 before it starts and tells it what happened after, so the buddy gains XP, tracks
 streaks, and learns which of your skills fits which kind of task.
@@ -195,6 +195,18 @@ it — a skill that reports nothing makes the advice worse for every skill.
 | `buddy-companion` | How to keep the companion healthy and read what it has learned. |
 | `project-memory` | Records what this codebase taught you — constraints, rejected approaches, gotchas — and loads it at the start of every future session. |
 | `security-audit-orchestrator` | Chains the pack in dependency order for a full audit in one pass. Use it when you do not yet know what you are looking for. |
+
+**Fleet and network**
+
+For work on devices rather than repositories. These read the `fleet` block of the
+config; the rest of the pack ignores it.
+
+| Skill | What it does |
+| --- | --- |
+| `change-window` | The pre-change gate for devices: intent vs running config, what the change can sever, a rollback you can still reach. |
+| `fleet-drift-audit` | Where devices that should be identical are not, and which of that drift changes your security posture. |
+| `segmentation-review` | Every path between two zones, not just the one with a firewall on it, then the ruleset on each. |
+| `device-lifecycle` | Firmware and EoL exposure across the fleet, triaged for what applies, with an upgrade sequence. |
 
 **Design and build**
 

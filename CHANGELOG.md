@@ -4,6 +4,35 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.3.0 — 2026-08-10
+
+### Added
+
+- **Four fleet and network skills**, for work on devices rather than
+  repositories. `change-window` gates a production network change by diffing
+  intent against the running config, working out what the change can sever, and
+  requiring a rollback path that survives the change severing the path you would
+  roll back over. `fleet-drift-audit` finds where devices that should be
+  identical are not, and separates deliberate variation from decay.
+  `segmentation-review` enumerates every path between two zones rather than the
+  one with a firewall on it, then reads the ruleset on each.
+  `device-lifecycle` triages firmware and end-of-life exposure across a fleet
+  against vendor advisories, and sequences the upgrades.
+
+- A `fleet` block in `config.example.json`, and the `buddy-setup` questions that
+  fill it. `fleet.out_of_band` is the load-bearing one: `change-window` cannot
+  gate a self-severing change without knowing whether there is a way back in.
+  `fleet.managed` stays false for an ordinary application repository, and no
+  other skill in the pack reads the block.
+
+- Routing in `setup-routing.md` for a repository that manages a fleet, and the
+  rule that `device-lifecycle` comes first when the trigger is a published
+  advisory rather than general unease.
+
+  These were written on 2026-08-06 in a second working copy of this repository
+  and had never been committed from it. They are unchanged in substance here;
+  what changed is the surrounding wiring, which had moved on by twelve commits.
+
 ## 1.2.1 — 2026-08-10
 
 ### Fixed

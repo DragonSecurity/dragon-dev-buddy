@@ -25,6 +25,18 @@
     "authorization_ref": "[ticket, SOW or written approval this work is covered by]",
     "contact": "[who to notify on a critical finding]"
   },
+  "fleet": {
+    "_comment": "Only read by the fleet and network skills (change-window, fleet-drift-audit, segmentation-review, device-lifecycle). Leave managed false and the rest empty for an ordinary application repo.",
+    "managed": false,
+    "inventory_source": "[e.g. NetBox, Nautobot, an Ansible inventory, a spreadsheet, none]",
+    "config_backup": "[e.g. Oxidized, RANCID, NAPALM, a git repo, none]",
+    "golden_config": "[path or repo holding the intended config and templates, or none]",
+    "device_classes": ["[e.g. edge-router]", "[e.g. spine]", "[e.g. leaf]", "[e.g. firewall]"],
+    "vendors": ["[e.g. Juniper Junos 22.4]", "[e.g. Arista EOS 4.31]", "[e.g. PAN-OS 11.1]"],
+    "out_of_band": "[e.g. console server on a separate carrier, LTE OOB, none]",
+    "change_window": "[e.g. Tue/Thu 22:00-02:00, or none]",
+    "approval": "[who approves a production network change]"
+  },
   "practice": {
     "test_command": "[e.g. npm test]",
     "lint_command": "[e.g. npm run lint]",
