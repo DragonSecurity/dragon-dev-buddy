@@ -4,6 +4,174 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.4.0 — 2026-08-10
+
+Six new skills, taking the pack from 21 to 27, and four harvests into skills
+that were already here. All of it is derived from Matt Pocock's MIT-licensed
+skill collection at https://github.com/mattpocock/skills, rewritten against
+this pack's conventions and given the security argument that is the reason each
+one earns a permanently loaded description. `THIRD-PARTY-NOTICES.md` is new and
+records the licence, the file-by-file provenance, and which upstream skill each
+piece came from.
+
+The shape of the release is one admission: the pack was strong on the security
+loop and had almost nothing on the practice around it. Every gap below is a
+place where an existing skill was already relying on material the pack had
+never written down.
+
+### Added
+
+- **`session-handoff`** — compacts a session in flight into a document a cold
+  agent can act on within a minute: the goal, what is done with the SHA that
+  proves it, what is mid-change and its exact state, what was ruled out and why,
+  and the next concrete action. The pack had `project-memory` and read that as
+  covering continuity. It does not: a memory is a durable fact about the
+  codebase, loaded into every future session, and the state of one task in
+  flight is neither durable nor a fact about the codebase. What was actually
+  being lost was the rejected approach — the expensive omission, because the
+  next session reaches the same wall by the same route, and usually lands on the
+  approach that was abandoned, since it is the obvious one. The skill runs the
+  phase-boundary check first (continuing, clearing or compacting is usually the
+  better move), redacts every secret, and writes outside the working tree —
+  `output.reports_dir` is read only so it can be avoided, because a directory
+  that exists to be handed to other people is queued for distribution.
+
+- **`skill-authoring`** — writes and edits the documents an agent consumes: a
+  skill in this pack, a `CLAUDE.md`, an `AGENTS.md`, a reference file something
+  points at. It works the levers that decide whether the agent reaches the
+  material at all (the description as a context pointer, worded to trigger) and
+  whether it takes the same process every run (completion criteria with a
+  checkable bound, progressive disclosure, the no-op pass). Until now the
+  pack's own authoring rules lived in `CONTRIBUTING.md` and in the test file,
+  which is to say they were discoverable by whoever already knew — so the
+  contract that decides whether a skill fires at all was the one thing the pack
+  never taught. In a security pack a skill that does not fire is a control that
+  was never applied, and a review that never ran is indistinguishable from a
+  clean one. Ships the test contract as a checklist so a draft can be graded
+  before `go test ./...` is run, and names the pack's own duplication debt — the
+  `**Advise first.**` paragraph copied into every skill but two — as debt rather
+  than paying it in the diff that added a skill.
+
+- **`design-interview`** — works the design as a tree of decisions, computing
+  the frontier each round and asking the whole of it at once with a recommended
+  answer attached to every question, until nothing is left silently assumed.
+  Every other skill in the pack opens with an `Inputs` section that asks once,
+  flat, and that is the right shape only when the design is settled and merely
+  undocumented. Nothing owned the case where the design itself is still argued
+  about, so `threat-model` and `secure-feature-build` were modelling and
+  specifying over whatever the first person to type had guessed. An unasked
+  question is an undocumented assumption, and that is where the abuse case
+  nobody wrote down lives; the expensive version is subtler still — a decision
+  everyone believes is settled and that is quietly false, which no one asks
+  about precisely because no one is uncertain about it.
+
+- **`codebase-design`** — the vocabulary for deep modules (module, interface,
+  implementation, depth, seam, adapter, leverage, locality) and the procedure
+  for putting a scattered control behind one. Three skills were already using
+  these words as though they had been defined somewhere: `security-test-writer`
+  step 2 said "find the real seam" and never said what a seam is,
+  `refactor-safely` extracts code without naming a shape to extract toward, and
+  `secure-feature-build` asks for a design that makes the abuse case
+  structurally impossible without saying where the structure goes. The security
+  argument is the one the pack had been making implicitly: "every query must
+  filter by tenant" is not a control, it is a convention with forty enforcement
+  points and no enforcement, and depth is what converts it into something
+  omission cannot express.
+
+- **`runbook-wizard`** — turns a procedure only a human can carry out into an
+  interactive bash script: a console with no API, a credential the agent must
+  never hold, an approval from a named human, a cutover whose middle is a
+  judgement call. It rules the agent out step by step first and does the agent's
+  half immediately, so what survives into stages is only what genuinely needs a
+  person. The pack could gate a deploy and could not hand over the manual half
+  of one, which meant those steps were being re-explained to an agent every time
+  or done from memory at the wrong hour. Ships the wizard library as
+  `scripts/wizard-template.sh` — plan mode as the default for the whole run,
+  prompts validated in-process against the shape the provider issues, secrets
+  read hidden and piped to `gh` over stdin rather than argv, mode 600 on
+  everything written, a gitignore-and-tracked refusal that fires before the
+  human is asked to paste anything, and per-stage state so a cutover that stops
+  half-way resumes instead of repeating a revocation. bash 3.2 throughout,
+  because the machine in the room during a cutover is a macOS laptop.
+
+- **`git-guardrails`** — installs a `PreToolUse` hook on `Bash` that refuses the
+  git commands which destroy work no clone can recover: force pushes, pushes to
+  a protected branch, `reset --hard`, `clean -f`, `branch -D`. `ship-it` gated
+  what reached production and nothing gated the agent's own shell, where
+  `git reset --hard` is as easy to type as `git status` and only one of the two
+  is undoable — uncommitted work has no reflog. The design constraint is what
+  makes it survive: it does not block `git push`, because a blanket push block
+  is uninstalled the first afternoon it lands on an ordinary branch, and an
+  uninstalled guard is worse than none since people still believe it is there.
+  Ships as `scripts/block-dangerous-git.sh`. The pause it buys is also the one
+  in which a leaked-credential history rewrite gets decided by a person rather
+  than reflexively — rotation closes the exposure, the rewrite only hides the
+  evidence — and that case hands off to `secrets-and-config-audit`.
+
+### Changed
+
+- **`debug-and-fix` now gates on a red-capable command.** Step 1 was "reproduce
+  it first"; it is now a bar with a name attached — one command you have already
+  run at least once, that drives the actual bug path and asserts the user's
+  exact symptom, is deterministic, takes seconds and runs unattended. Isolation
+  does not begin before that command exists, and the quality bar checks it,
+  because reading code to build a theory before anything exists that can
+  contradict the theory is the specific failure that costs whole afternoons.
+  `references/debugging-method.md` roughly doubled to support it: ten ways to
+  build a loop ranked best-first, the three axes to tighten it on (faster,
+  sharper, more deterministic), instrumentation hygiene including the unique
+  `[DEBUG-a4f2]` prefix that makes cleanup a provably complete grep, a
+  measure-first branch for performance regressions where logs are the wrong
+  tool, intermittent bugs reframed around raising the reproduction rate rather
+  than chasing a clean repro, and an honest script for when no loop can be built
+  — name which of the ten you tried, then ask for the one thing that would
+  unblock it.
+
+- **`security-test-writer` now rules out the tautological test.** Discrimination
+  was the whole proof: see it red on the vulnerable code, green on the fix. That
+  is necessary and not sufficient. An assertion that recomputes its expected
+  value the way the code does — signing a token with the verifier's own helper,
+  comparing output to `sanitise(input)`, blessing a snapshot of current
+  behaviour — can discriminate cleanly and still be incapable of ever
+  disagreeing with the implementation. Expected values now have to come from an
+  independent source: a hand-written literal, the exploit payload, the spec.
+  The reference gained that rule and the two other structural anti-patterns,
+  implementation-coupled and horizontal slicing, with the note that coupling
+  matters more here than elsewhere because a security test exists to outlive
+  several refactors of the code it guards.
+
+- **`secure-code-review` gained a spec-conformance axis.** New step 7 locates
+  the originating spec — an issue reference in the commits or PR body, a path
+  the user passed, a `secure-feature-build` spec under `output.reports_dir` —
+  and reports three buckets against it, each quoting the spec line it rests on:
+  missing or partial, not asked for, implemented wrongly. If no spec resolves it
+  says so and skips, rather than reconstructing one from the diff, since a spec
+  derived from the change can only ever agree with the change. The axis is
+  reported under its own heading and never merged or reranked into the severity
+  list: code that is individually secure can still omit the control the spec
+  required, and merged into one list the louder axis decides the verdict while
+  the quiet one reads as passing. The security case is the "not asked for"
+  bucket — scope added during implementation was never specified, never threat
+  modelled and never reviewed, so it arrives as attack surface with no abuse
+  case attached.
+
+- **`secure-feature-build`'s spec template gained an `Out of scope` section**,
+  and the quality bar now checks that nothing from that list quietly arrived in
+  the implementation. A spec that never draws its own boundary gets scope added
+  during the build, and added scope is unspecified, unmodelled and unreviewed:
+  no abuse case covers it and no negative test constrains it.
+
+- **The existing skills now hand off to the new ones.** `threat-model` and
+  `secure-feature-build` route to `design-interview` when the design is still
+  unsettled rather than modelling over guesses; `refactor-safely`,
+  `security-test-writer` and `debug-and-fix` route to `codebase-design` for the
+  seam vocabulary they were already using; `secure-code-review` stops at a file
+  or PR boundary and runs `session-handoff` rather than thinning the remaining
+  reviews. `threat-model` also states the distinction it had been leaving to
+  the reader: a trust boundary is not a seam, they are worth making coincide,
+  and drawing seams as boundaries inflates the model with elements that produce
+  filler.
+
 ## 1.3.1 — 2026-08-10
 
 ### Fixed

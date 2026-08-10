@@ -2,6 +2,12 @@
 
 ## Adding a skill
 
+This file is the mechanical contract: the layout, what the tests enforce, and how
+a release is cut. The `skill-authoring` skill is the other half — the levers that
+decide whether a skill fires at all and whether it makes the agent take the same
+process every run. Run it when you are writing the prose; read this when you are
+checking the prose will build.
+
 A skill is a directory under `skills/` containing `SKILL.md`, a `references/`
 directory for depth, and an `examples/` directory holding one worked run.
 

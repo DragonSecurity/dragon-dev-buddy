@@ -29,6 +29,41 @@ A diff shows what moved, not what is now true. For any hunk touching authenticat
 
 The PR body is the author's account of what they did, and it satisfies the skill's "what is this supposed to do" input only as a hypothesis. Read it, then check the diff against it. A change that does *more* than the description says is worth a line in the review even when the extra part is harmless — it is how unreviewed scope reaches production.
 
+## The spec axis
+
+The description tells you what the author believes they built. The spec tells you what the change was supposed to be, and the two are different documents with different authority. Reviewing against the spec is a second axis, run alongside the security pass and reported beside it — never folded into it.
+
+It earns its place because the security pass cannot see this class of defect at all. Every line can be individually safe and the change can still omit the control the spec required, implement it in a way that does not do what the spec meant, or carry behaviour nobody asked for. That last one is the security case for the axis: scope added during implementation is scope that was never specified, never threat-modelled and never reviewed as a feature. It arrives as attack surface with no abuse case attached.
+
+### Finding the spec
+
+In this order, stopping at the first that resolves:
+
+1. An issue or ticket reference in the commit messages or the PR body — `#123`, `Closes #45`, a tracker URL. Fetch it (`gh issue view <n>`) rather than reasoning from its title.
+2. A path the user passed when invoking the review.
+3. A spec under `output.reports_dir` whose name matches the branch or the feature — `secure-feature-build` writes `YYYY-MM-DD-spec-<feature>.md` exactly there.
+4. Ask the user where it is.
+
+If none of these resolves, report `Spec: none found — axis skipped` and move on. Do not reconstruct a spec by reading the diff and describing what it does: a spec derived from the change can only ever agree with the change, and printing that agreement as a passing axis is worse than printing nothing, because it reads as a check that was performed.
+
+### What to report
+
+Three buckets, each finding quoting the spec line it rests on so the reader can disagree with your reading of the spec without discarding the review:
+
+- **Missing or partial.** The spec asked for it; the diff does not contain it, or contains half of it. A requirement implemented for one code path and not its sibling belongs here, not in "implemented wrongly".
+- **Not asked for.** Behaviour in the diff that no spec line calls for. Say what it is and what it touches. Harmless-looking extras still get a line — an unrequested cache, retry, fallback or debug route is unreviewed surface, and the point of naming it is that nobody else will.
+- **Implemented wrongly.** A requirement the change appears to satisfy but does not: the right check in the wrong place, an allowlist that the spec described as a denylist, a limit enforced client-side that the spec put on the server. These are the expensive ones, because a reader scanning for the requirement finds it and stops.
+
+### A `secure-feature-build` spec is the strongest one available
+
+When the originating spec came from `secure-feature-build`, its abuse-case list is the most reviewable spec this pack produces: each entry is an attacker sentence mapped to a defence phrased as testable behaviour. Review it as a traceability matrix — every defended abuse case should land on code you can point at, and on the negative test that performs the attack. An abuse case the spec marked deferred is fine if the deferral and its reason are still true; a deferral whose stated reason the diff has since invalidated is a finding on this axis. An abuse case that is silently absent from both code and tests is the single highest-value thing this axis finds.
+
+### Report the two axes separately
+
+Present the security findings and the spec findings under their own headings, and summarise each on its own — worst security finding, worst spec finding. Do not produce one merged ranked list and do not pick an overall verdict across the two.
+
+The separation is the whole mechanism. A change with no security findings and three missing requirements is not a good change, and a change that implements the spec exactly while opening an injection is not a good change either. Merged into one list, whichever axis is louder decides the verdict, and the quiet one is read as passing when nobody ran it.
+
 ## Fork PRs are untrusted code
 
 `isCrossRepository: true` means the head branch lives in someone else's repository, and it means the diff is hostile until proven otherwise.

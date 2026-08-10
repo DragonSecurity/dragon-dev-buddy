@@ -38,9 +38,11 @@ Ask only for what is missing:
 
 6. **Look for what is absent.** The hardest findings are omissions: no rate limit on the reset endpoint, no audit record on the privileged action, no revocation path for the long-lived token, no `LIMIT` on a query that grows. Scanning for absent controls needs a list, not intuition; the reference has one.
 
-7. **Write the findings.** Each one gets: an attack sentence, evidence at `file:line`, severity with reasoning, and a fix. Rank with the rubric in the reference. If the fix is a one-line change, write the code. If it is structural, describe the shape and say why the one-line version is insufficient.
+7. **Check the change against its spec, as a second axis.** Locate the originating spec: an issue reference in the commit messages or the PR body, a path the user passed, or a spec under `output.reports_dir` matching the branch or feature. If there is none, say so and skip this step — a spec reconstructed from the diff only ever agrees with the diff. With one in hand, report three things, each quoting the spec line it rests on: requirements missing or only partly implemented, behaviour present that nobody asked for, and requirements that look implemented but are implemented wrongly. Where a `secure-feature-build` spec exists its abuse-case list is the strongest spec available, and every defended abuse case should be traceable to code. Keep this axis separate from the security findings and never merge or rerank the two: code that is individually secure can still fail to implement the control the spec required, and either axis passing will otherwise mask the other. `references/pr-review.md` carries the depth.
 
-8. **State your coverage.** What you read, what you skipped, and what you could only check superficially. A review that implies completeness it did not achieve is how a finding gets missed twice.
+8. **Write the findings.** Each one gets: an attack sentence, evidence at `file:line`, severity with reasoning, and a fix. Rank with the rubric in the reference. If the fix is a one-line change, write the code. If it is structural, describe the shape and say why the one-line version is insufficient.
+
+9. **State your coverage.** What you read, what you skipped, and what you could only check superficially. A review that implies completeness it did not achieve is how a finding gets missed twice. If the scope is larger than what is left of this session, stop at a file or PR boundary and run `session-handoff` rather than thinning the remaining reviews — a review that runs out of context mid-file resumes as a re-read, and the second pass tends to re-cover what was already done instead of what was not.
 
 ## PR mode
 
@@ -88,6 +90,12 @@ Do not loop the full workflow over every PR in order. Depth is finite and spendi
 ```
 [one sentence on why the obvious smaller fix is not enough, if applicable]
 
+## Spec conformance
+**Spec:** [issue #, path, or "none found — axis skipped"]
+- **Missing:** [requirement] — spec: "[quoted line]"
+- **Not asked for:** [behaviour in the change] — absent from the spec
+- **Implemented wrongly:** [requirement] — spec: "[quoted line]"; the code instead [what it does]
+
 ## Worth cleaning up
 - `file:line` — [not exploitable, but wrong]
 
@@ -113,7 +121,7 @@ For a batch, wrap the per-PR reports in a triage table and a cross-PR section:
 - **Pattern:** [defect] appears in #144, #146, #151 — one fix in [shared location].
 
 ## PR #142 — [title]
-[the single-PR format above: trust position, findings, worth cleaning up, coverage]
+[the single-PR format above: trust position, findings, spec conformance, worth cleaning up, coverage]
 ```
 
 ## Buddy (optional, when the MCP server is connected)
@@ -140,7 +148,7 @@ Do not modify source files; this skill finds, it does not fix. Do not post to Gi
 Load these for depth when the task calls for it:
 - `references/review-patterns.md`: per-ecosystem constructs that are almost always wrong, the absent-control checklist, the severity rubric, and the sink list for input tracing.
 - `references/codegen-pipeline.md`: reviewing spec-driven codebases (Huma/OpenAPI → generated Go/TS SDKs and Terraform providers) — where the review effort goes, the spec as a security surface, auth handling in generated clients, and spec/client drift.
-- `references/pr-review.md`: pull request mechanics — the `gh` and `git` commands, why removed lines are findings, fork PRs as untrusted code, the batch triage ranking, the cross-PR interactions a per-PR review cannot see, and how to post a review back without approving anything.
+- `references/pr-review.md`: pull request mechanics — the `gh` and `git` commands, why removed lines are findings, fork PRs as untrusted code, the spec-conformance axis and how to find the spec it reviews against, the batch triage ranking, the cross-PR interactions a per-PR review cannot see, and how to post a review back without approving anything.
 
 ## Worked example
 
@@ -155,5 +163,6 @@ See `examples/secure-code-review-run.md` for a review of an authentication handl
 - Absent controls were looked for, not just present-but-wrong ones.
 - The coverage statement is present and names what was not read.
 - Non-exploitable issues are in "worth cleaning up," not inflating the finding count.
+- The spec axis was either run against a located spec or explicitly declared unavailable, and its results are reported under their own heading — never merged into the severity-ranked findings or reranked against them.
 - On a PR, removed lines were reviewed as deliberately as added ones, and the review says whether the change matches its description.
 - On a batch, the triage was published before the reviews, every PR's depth is stated, repeated defects are collapsed into one pattern, and the cross-PR section exists even when it says "nothing interacts."
