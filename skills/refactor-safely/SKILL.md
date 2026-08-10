@@ -30,6 +30,8 @@ Ask only for what is missing:
 
 4. **Refactor in small, reversible steps.** One transformation at a time — extract a function, rename, inline, move, dedupe — running the net after each. Small steps mean a failure points at the change that caused it. A large rewrite that goes red gives you no information about which part broke. Prefer your tool's mechanical refactorings (rename, extract) where available; they preserve behavior by construction.
 
+   Extraction needs a shape to extract *toward*, and `codebase-design` is where this pack defines the words for it — seam, depth, adapter — which the steps above and `references/characterization.md` otherwise use as though everyone agrees on them. When the stated goal is a testable seam, design that seam there first: extracting toward a shape nobody chose produces a shallow wrapper, and the second refactor that fixes it needs its own net.
+
 5. **Keep behavior identical, and mean it.** No behavior changes ride along. Not a bug fix, not a "while I'm here" improvement, not a new feature. Those are separate commits with separate review, and mixing them means a reviewer cannot tell the safe structural change from the risky behavioral one. If you spot a bug, note it and leave it for `debug-and-fix` — or fix it in its own commit, before or after, never during.
 
 6. **Verify behavior held.** The net is green again. The security inventory from step 2 is all still tested and passing. The build passes, the linter passes. State it as run: "the 40 characterization tests and the 6 control tests all pass, build and lint clean."

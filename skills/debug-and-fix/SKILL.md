@@ -21,9 +21,9 @@ Ask only for what is missing:
 
 ## Workflow
 
-1. **Reproduce it first.** Before theorizing, make it happen. A failing test, a curl command, a script — something that produces the bug on demand. A bug you cannot reproduce, you cannot know you fixed. If it is intermittent, work `references/debugging-method.md` for the techniques that force a race or a state-dependent bug into the open. If you genuinely cannot reproduce it, say so and switch to gathering the evidence that would let you, rather than guessing at a fix.
+1. **Build a loop that goes red.** Before theorizing, make the bug happen on command. The bar to clear before step 3 is one named command you have already run at least once, that drives the real bug path and asserts the user's exact symptom, is deterministic, takes seconds, and runs unattended. A test, a curl, a script, a replayed capture — `references/debugging-method.md` ranks the ways to build one, how to tighten it, what to do for intermittent bugs where the goal is a higher reproduction rate rather than a clean repro, and what to ask for when no loop can be built. Reading code to form a theory before that command exists is the failure this step prevents; if no loop is possible, say so and gather evidence instead of guessing at a fix.
 
-2. **Capture the reproduction as a test.** Write the failing test now, while the bug is live. It documents the exact trigger, it will verify the fix, and it becomes the regression guard. This is the same test-first discipline as `security-test-writer`; here it starts the work rather than ending it.
+2. **Capture the reproduction as a test.** Write the failing test now, while the bug is live. It documents the exact trigger, it will verify the fix, and it becomes the regression guard. Put it at a seam that exercises the real bug pattern — a seam too shallow to reach it gives coverage-shaped false confidence, and if no correct seam exists that absence is a finding worth reporting (`codebase-design` has the vocabulary). This is the same test-first discipline as `security-test-writer`; here it starts the work rather than ending it.
 
 3. **Isolate by bisection, not by staring.** Narrow the location with evidence: binary-search the input to find the smallest that triggers it, bisect the git history if it is a regression, add instrumentation at the midpoint of the suspect path and halve the search each time. Resist the first plausible theory; the plausible cause and the actual cause diverge often enough that jumping to a fix wastes more time than isolating properly.
 
@@ -68,7 +68,7 @@ The fix and its test go into the codebase. For a subtle or recurring bug, a shor
 ## Reference library
 
 Load these for depth when the task calls for it:
-- `references/debugging-method.md`: the systematic method for when the cause is unclear, techniques for intermittent and race-condition bugs, bisection strategies, and the common-cause patterns by error type.
+- `references/debugging-method.md`: how to build and tighten a feedback loop and the gate it has to clear, the systematic method for when the cause is unclear, bisection strategies, instrumentation hygiene, the measure-first branch for performance regressions, techniques for intermittent and race-condition bugs, the common-cause patterns by error type, and what to ask for when no loop can be built.
 
 ## Worked example
 
@@ -77,6 +77,7 @@ See `examples/debug-and-fix-run.md` for a bug fixed from stack trace to regressi
 ## Quality bar
 
 - The bug was reproduced before it was fixed. A fix for an unreproduced bug is labelled a hypothesis.
+- One command is named that was run and seen to go red on the actual symptom — deterministic, fast, unattended. Isolation did not start before it existed.
 - The root cause is stated in one specific sentence, at a location. No "there was an issue with."
 - The fix addresses the cause, not the symptom, and does not smuggle in an unrelated refactor.
 - The class was checked. Sibling instances were found and fixed, or their absence was confirmed.

@@ -10,6 +10,14 @@ Three parts, always:
 
 A suite with only part 1 rewards a fix that denies everyone. A suite with only part 2 is not a security test at all. Both, every time.
 
+## Agree the seams before writing
+
+A **seam** is the boundary you test at: the interface where the property is observable without reaching inside the implementation. Security tests live at seams, never against internals.
+
+Write down which seams are under test and confirm them before writing a line of test code. You cannot test everything, and agreeing the seams up front is how the effort lands on the paths that carry the risk — the auth check, the tenancy filter, the upload sink — instead of spreading evenly across the codebase. An unconfirmed seam is a guess about where the property lives, and a test at the wrong layer passes while the application stays exploitable.
+
+For the vocabulary — seam, module, interface, depth — and for what to do when the property has no seam to be tested at, load `codebase-design`.
+
 ## Proving discrimination
 
 A security test is only meaningful if it has been seen to fail on the vulnerable code. Ways to prove it, best first:
@@ -19,6 +27,8 @@ A security test is only meaningful if it has been seen to fail on the vulnerable
 - **Break it deliberately, once.** Temporarily reintroduce the bug in a local edit, confirm red, revert. Least clean; use only when the other two are impractical.
 
 Never ship a security test whose red state you have not observed. A green test proves nothing about a bug you cannot make it catch.
+
+Discrimination is necessary and not sufficient. Seeing a test go red on vulnerable code proves it can disagree with *that* version of the code; it does not prove the assertion has an opinion of its own. A tautological assertion (below) can still go red on the vulnerable code and green on the fix while being incapable of ever disagreeing with the code as written. Check both: it discriminated, and its expected value came from somewhere other than the implementation.
 
 ## Boundary cases by vulnerability class
 
@@ -87,6 +97,28 @@ Never ship a security test whose red state you have not observed. A green test p
 **No oracles in the test's own responses.** If the fix makes "not found" and "not yours" return the same thing, the test should assert they are the same thing — identical status and identical body. Encode the anti-oracle property, because it is exactly what a future change will regress.
 
 ## Anti-patterns
+
+Three of these are structural — the test is worthless on the day it is written, and no amount of running it will reveal that.
+
+### Tautological
+
+The assertion recomputes the expected value the way the code computes it, so it passes by construction and can never disagree with the implementation. In security tests this hides well: asserting that the signature check accepts a token you signed by calling the same signing helper the verifier trusts; asserting the sanitiser's output equals `sanitise(input)`; asserting the tenant filter returns the rows that `scopedQuery()` returns; a snapshot generated from the current output and then blessed.
+
+Expected values must come from an independent source of truth — a literal you wrote by hand, a payload from the actual exploit, a worked example from the spec or the CVE, a fixture captured from a system that is known good. If the only way to know the expected value is to ask the code, the test is asking the accused to testify.
+
+### Implementation-coupled
+
+The test mocks internal collaborators, reaches into private methods, or verifies through a side channel — querying the database directly to confirm the row was not written, rather than asking the interface for it. The tell is a test that breaks on refactor while behaviour is unchanged.
+
+This is more acute for security tests than for ordinary ones, because a security test is meant to outlive several refactors of the code it guards. That is its whole job: it is there for the change nobody remembers making, two years out. A test coupled to today's internals gets deleted or "updated" during the first restructure, by someone who has no idea what it was defending.
+
+### Horizontal slicing
+
+Writing every test first and then all the implementation. Bulk-written tests verify imagined behaviour — the shape you pictured rather than what the system does — and they go insensitive to real changes because you committed to the test structure before you understood the code.
+
+Work in vertical slices instead: one test, one piece of implementation, then the next test chosen in light of what the last one taught you. Each test is a tracer bullet. With security tests this matters twice over, because writing the attack usually teaches you something about the real attack surface — a second parameter that reaches the same sink, an encoding the framework already decodes — and a batch of tests written up front cannot respond to that.
+
+### Smaller tells
 
 - Testing a mock of the vulnerable function instead of the function. The mock is not the code that ships.
 - Asserting only the status code when the body is where the data leaks.

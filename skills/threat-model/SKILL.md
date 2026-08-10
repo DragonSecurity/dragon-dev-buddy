@@ -24,11 +24,15 @@ Ask only for what is missing:
 
 Do not ask for a diagram. Build one from the code.
 
+If the system's design is still unsettled — the boundaries depend on decisions nobody has made yet, or the answers above would be your guesses rather than the user's — run `design-interview` before this skill and bring its settled answers back. A model built over assumed design records the assumptions as facts, and everything downstream of it, the ranking and the backlog included, inherits them without any way to tell.
+
 ## Workflow
 
 1. **Map the system.** Identify the actors (human and machine), the processes, the data stores, and the flows between them. Read entry points, route definitions, service clients and schema. Keep it to the level of detail where every element could plausibly be attacked separately. Ten elements is a useful model; sixty is a diagram nobody will read.
 
 2. **Draw the trust boundaries.** A boundary is any place where the level of trust in the data or the caller changes: browser to API, API to database, service to third party, tenant to tenant, unauthenticated to authenticated, user to admin. Render the result as a Mermaid diagram with boundaries as subgraphs. Every boundary you draw is a place you will enumerate threats.
+
+   A trust boundary is not a seam. A seam in `codebase-design`'s sense is a place an implementation can be substituted — chosen for testability and depth; a trust boundary is a place the level of trust in the caller or the data changes. They are worth making coincide, because a control that sits on a seam has one place to live instead of forty, but they are not the same line: a module boundary that never changes who is trusted has no threats to enumerate, and drawing it here inflates the model with elements that produce filler.
 
 3. **Enumerate threats per element, using STRIDE.** For each element that touches a boundary, walk the six categories: Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege. Not every category applies to every element; say so rather than inventing filler. Use the prompts in `references/stride-prompts.md` to avoid the generic-threat trap.
 

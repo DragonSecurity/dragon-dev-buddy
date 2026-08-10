@@ -23,6 +23,8 @@ Ask only for what is missing:
 
 Do not ask for a full spec. Draft one and confirm it.
 
+If the requirement itself is still unsettled — the shape is argued about, or answering the four questions above would be guessing on the user's behalf — run `design-interview` in place of this section and carry its settled answers, with their reasoning, into step 1. Guessed answers here become abuse cases enumerated against a feature nobody agreed to build.
+
 ## Workflow
 
 1. **Write the requirement in one paragraph.** What the feature does when everything goes right. Confirm this with the user before going further; building the wrong feature securely is still building the wrong feature.
@@ -33,7 +35,7 @@ Do not ask for a full spec. Draft one and confirm it.
 
 4. **Decide the data and trust shape.** Where does the data live, what is the minimum privilege the feature needs, and where is the trust boundary. Prefer the design that makes the abuse case structurally impossible over the one that checks for it. A tenant column that every query must remember is worse than a row-level policy the database enforces.
 
-5. **Write the spec.** Requirement, abuse cases, defenses-as-requirements, data model, trust boundary, and the acceptance tests — including the negative ones. This is the artifact; the code implements it.
+5. **Write the spec.** Requirement, abuse cases, defenses-as-requirements, data model, trust boundary, out of scope, and the acceptance tests — including the negative ones. This is the artifact; the code implements it. State the out-of-scope list explicitly: a spec that never draws its own boundary gets scope added during implementation, and added scope is unspecified, unmodelled and unreviewed — no abuse case covers it and no negative test constrains it.
 
 6. **Build it.** Implement to the spec. The defenses go in as the feature is written, not after. Every abuse case from step 2 is either handled in the code or explicitly deferred with a reason. Match the codebase's existing patterns and style.
 
@@ -61,6 +63,10 @@ First the spec, then the implementation:
 
 ## Data and trust
 [what's stored, minimum privilege, boundary]
+
+## Out of scope
+- [what this feature deliberately does not do, and what nobody should therefore assume it defends]
+- [the adjacent thing it will be mistaken for, named so the mistake is visible]
 
 ## Acceptance tests
 - Positive: [...]
@@ -106,5 +112,6 @@ See `examples/secure-feature-build-run.md` for a file-sharing feature built from
 - Defenses are phrased as testable behavior, not as "validate input."
 - The design prefers structural impossibility over runtime checks where it can.
 - Every defended abuse case has a negative test that performs the attack.
+- The spec names what is out of scope, and nothing from that list quietly arrived in the implementation.
 - The build notes state what was deferred and why, rather than implying full coverage.
 - The feature does what the user actually asked for. Secure and wrong is still wrong.

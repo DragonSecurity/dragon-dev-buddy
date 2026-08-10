@@ -3,8 +3,11 @@
 A Claude plugin for people who write code that has to hold up under attack, with a
 persistent companion attached.
 
-21 skills covering the loop from *what could go wrong* through *ship it* to
-*write up what happened*, for code and for the network it runs on. Every skill asks your
+27 skills covering the loop from *what could go wrong* through *ship it* to
+*write up what happened*, for code and for the network it runs on — and the
+working practice around that loop: interrogating a design before it hardens,
+guarding the commands that destroy work, handing a session to the next one, and
+writing the documents the agent itself reads. Every skill asks your
 [buddy-mcp](https://github.com/DragonSecurity/buddy-mcp) companion what to load
 before it starts and tells it what happened after, so the buddy gains XP, tracks
 streaks, and learns which of your skills fits which kind of task.
@@ -194,6 +197,8 @@ it — a skill that reports nothing makes the advice worse for every skill.
 | `buddy-setup` | Interviews you once, writes `.dragon-buddy/config.json`, hatches the buddy. |
 | `buddy-companion` | How to keep the companion healthy and read what it has learned. |
 | `project-memory` | Records what this codebase taught you — constraints, rejected approaches, gotchas — and loads it at the start of every future session. |
+| `session-handoff` | Compacts a session in flight into a document a cold agent can act on — state, what was ruled out, the next concrete action — redacted, and written outside the working tree. |
+| `skill-authoring` | Write the documents an agent reads — a skill in this pack, a `CLAUDE.md`, an `AGENTS.md` — against the levers that decide whether it fires and what it makes the agent do. |
 | `security-audit-orchestrator` | Chains the pack in dependency order for a full audit in one pass. Use it when you do not yet know what you are looking for. |
 
 **Fleet and network**
@@ -212,9 +217,11 @@ config; the rest of the pack ignores it.
 
 | Skill | What it does |
 | --- | --- |
+| `design-interview` | Works the design tree in rounds, asking the whole frontier at once with a recommendation on every question, until nothing is left silently assumed. |
 | `threat-model` | STRIDE pass over a system or feature, ranked, with mitigations that map to real files. |
 | `secure-feature-build` | Idea to spec to implementation with the abuse cases written before the code. |
 | `debug-and-fix` | Reproduce, isolate, fix, and prove the fix with a test. |
+| `codebase-design` | The vocabulary for deep modules — interface, seam, adapter, depth — and the procedure for putting a scattered control behind one of them. |
 | `refactor-safely` | Change structure without changing behavior, with a characterization-test net. |
 
 **Audit**
@@ -240,6 +247,8 @@ config; the rest of the pack ignores it.
 | Skill | What it does |
 | --- | --- |
 | `ship-it` | The pre-deploy gate: tests, security checks, blast radius, rollback. |
+| `git-guardrails` | Install a `PreToolUse` hook that refuses the git commands which destroy work no clone can recover — force pushes, pushes to a protected branch, `reset --hard`, `clean -f`, `branch -D` — and leaves ordinary branch pushes alone. |
+| `runbook-wizard` | Turn the steps only a human can take — a console with no API, a credential the agent must never hold — into an interactive script: plan mode by default, prompts validated against the shape the provider issues, resumable stages, and no credential written anywhere git will commit. |
 
 ## Conventions
 
@@ -276,3 +285,7 @@ CI runs the same command on every push and pull request. See
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+Six skills and four reference files are derived from MIT-licensed work by Matt
+Pocock. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) reproduces that licence
+and names which files came from where.

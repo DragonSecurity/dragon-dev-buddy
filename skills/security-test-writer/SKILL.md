@@ -26,7 +26,7 @@ Ask only for what is missing:
 
 1. **Extract the security property.** Every finding asserts a property that should hold and does not. "A user cannot read another tenant's report." "A token signed with the wrong algorithm is rejected." "An upload path cannot escape the upload directory." Write it as a sentence. This is what the test asserts; everything else is setup.
 
-2. **Find the real seam.** Test at the lowest layer where the property actually lives. An authorization property tested through the full HTTP stack is slow and flaky; the same property tested at the handler or the repository function is fast and precise. But do not test below the bug: if the vulnerability is in the routing layer, a unit test of the query function will pass while the app stays exploitable. Match the layer to where the defect is.
+2. **Find the real seam.** Test at the lowest layer where the property actually lives. An authorization property tested through the full HTTP stack is slow and flaky; the same property tested at the handler or the repository function is fast and precise. But do not test below the bug: if the vulnerability is in the routing layer, a unit test of the query function will pass while the app stays exploitable. Match the layer to where the defect is. Name the seam and confirm it before writing test code rather than after — `codebase-design` has the vocabulary if the right boundary is itself in question.
 
 3. **Write the negative test — the attack.** The primary test performs the attack and asserts it fails. Tenant A authenticates and requests tenant B's object; assert 404 or 403, and assert the response body does not contain B's data. This test must **fail against the vulnerable code**. If it passes before the fix, it is asserting the wrong thing.
 
@@ -34,7 +34,7 @@ Ask only for what is missing:
 
 5. **Write the boundary cases.** The variations that a naive fix misses: the empty value, the null, the encoded payload (`%2e%2e%2f` as well as `../`), the case-varied header, the almost-right token, the off-by-one on the boundary. Load `references/security-test-patterns.md` for the set that matters per vulnerability class.
 
-6. **Prove the test discriminates.** State how you confirmed it fails on the vulnerable code and passes on the fix. If the fix is already in, revert it mentally (or actually, on a scratch branch) and confirm the test goes red. A test never seen to fail is not yet a test. Say which you did.
+6. **Prove the test discriminates, and that it could have disagreed.** State how you confirmed it fails on the vulnerable code and passes on the fix — if the fix is already in, revert it on a scratch branch and confirm the test goes red. A test never seen to fail is not yet a test. Then check the other half: where the expected value came from. If the assertion recomputes it the way the code does — signing the token with the verifier's own helper, comparing output to `sanitise(input)`, blessing a snapshot of current behaviour — it passes by construction and can never contradict the implementation, however cleanly it discriminated. Expected values come from an independent source: a hand-written literal, the exploit payload, the spec. `references/security-test-patterns.md` covers this and the other two structural anti-patterns.
 
 7. **Make it durable.** No dependence on record ids that a seed reshuffle will change, no sleeps for timing, no reliance on test execution order. It runs in CI, on someone else's machine, in two years. Name it so a failure is self-explaining: `rejects_cross_tenant_report_read`, not `test_security_3`.
 
@@ -75,7 +75,7 @@ Test files in the project's test location, matching existing conventions. This s
 ## Reference library
 
 Load these for depth when the task calls for it:
-- `references/security-test-patterns.md`: the boundary-case set per vulnerability class, framework-specific patterns for auth and multi-tenant tests, how to test negative properties cleanly, and how to prove a test discriminates.
+- `references/security-test-patterns.md`: the boundary-case set per vulnerability class, agreeing seams before writing, framework-specific patterns for auth and multi-tenant tests, how to test negative properties cleanly, how to prove a test discriminates, and the three structural anti-patterns — tautological, implementation-coupled, horizontal slicing.
 
 ## Worked example
 
@@ -88,5 +88,6 @@ See `examples/security-test-writer-run.md` for tests written for an IDOR fix. Tr
 - Boundary cases cover the encodings and edge values a naive fix misses.
 - The test is written at the layer where the defect lives, not above or below it.
 - Discrimination is proven and the method is stated. No test that was never seen to fail.
+- No assertion recomputes its expected value the way the code does. Expected values come from an independent source of truth, so the test could have disagreed with the implementation.
 - Names are self-explaining. A CI failure tells you what broke without opening the file.
 - The test is durable: no ordering, timing, or hardcoded-id dependence.
