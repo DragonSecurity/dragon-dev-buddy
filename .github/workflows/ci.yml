@@ -90,6 +90,13 @@ jobs:
           fi
           echo "version unchanged at $new, and nothing shipped in the bundle moved"
 
+      # The gate is the one piece of the pack that can stop a user's session, so
+      # it is the one piece checked by running it rather than by reading it. Node
+      # is preinstalled on the runner, which is the same thing the hook assumes
+      # of any machine it is installed on.
+      - name: The observe gate behaves
+        run: ./scripts/check-observe-gate.sh
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod

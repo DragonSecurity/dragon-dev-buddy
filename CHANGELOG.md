@@ -4,6 +4,35 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.3.1 — 2026-08-10
+
+### Fixed
+
+- **The observe gate no longer nags a turn that changed nothing.** Its dirty
+  mark is keyed by session, and nothing bounded it to a turn, so an edit could
+  outlive the turn that made it and be charged to the next one: a background
+  subagent or workflow whose `PostToolUse` arrives under the parent's session id
+  after the turn ended, a turn interrupted before `Stop` ever ran, and a session
+  resumed by id with a mark still on disk from its previous run. The gate now
+  runs on `UserPromptSubmit` and drops any mark left standing, so a mark can only
+  mean "this turn changed code". Found in a real transcript: a workflow agent
+  wrote a file 2m40s after its turn ended, and the next turn — a dozen `Bash`
+  calls, no edits — was blocked for it.
+
+  The reset is logged as `reset`, not as a `clear`, so it does not read as a turn
+  that recorded voluntarily in the buddy's compliance stats. Those stats
+  overcount prompted turns for as long as the pre-fix log stays inside the
+  30-day window.
+
+- The gate dispatches on `hook_event_name` with no default branch. Any event it
+  is not wired to used to fall through to the `Stop` handler, the one branch that
+  writes a block decision to stdout.
+
+### Added
+
+- `scripts/check-observe-gate.sh`, which runs the gate against a throwaway `HOME`
+  and asserts what it marks, clears, resets and blocks. CI runs it.
+
 ## 1.3.0 — 2026-08-10
 
 ### Added
