@@ -48,6 +48,10 @@ jobs:
     # release and uploading its asset.
     permissions:
       contents: write
+    # Handed to the marketplace job below, which pins the published entry to
+    # this exact file.
+    outputs:
+      sha256: ${{ steps.digest.outputs.sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -128,3 +132,149 @@ jobs:
             --title "dragon-dev-buddy ${GITHUB_REF_NAME#v}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
             "$ARTIFACT"
+
+      # The digest is taken from the asset downloaded back out of the release,
+      # not from the file on the runner, because the marketplace entry pins what
+      # users fetch and that is the copy they fetch. Hashing the local build
+      # would pin a file that is only assumed to be identical to it.
+      #
+      # The two are compared anyway: a mismatch means the upload did not survive
+      # the round trip, and publishing a pin for a corrupt asset would break
+      # every install rather than fail here.
+      - name: Digest of the published asset
+        id: digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT: ${{ steps.build.outputs.artifact }}
+        run: |
+          set -euo pipefail
+          downloaded="$RUNNER_TEMP/published"
+          mkdir -p "$downloaded"
+          gh release download "$GITHUB_REF_NAME" \
+            --pattern '*.plugin' --dir "$downloaded"
+
+          published="$(sha256sum "$downloaded"/*.plugin | cut -d' ' -f1)"
+          built="$(sha256sum "$ARTIFACT" | cut -d' ' -f1)"
+          if [ "$published" != "$built" ]; then
+            echo "::error::the published asset hashes to $published but the built artifact hashes to $built"
+            exit 1
+          fi
+
+          echo "sha256=$published" >> "$GITHUB_OUTPUT"
+          echo "published asset sha256: $published"
+
+  # The marketplace entry on main points at a release asset by URL and digest,
+  # so it can only be updated once that asset exists — which is after the tag,
+  # after this workflow has already run its other jobs. That ordering is why
+  # this is a job here rather than a step in the release pull request: at the
+  # time a human prepares that pull request, the digest it would need has not
+  # been computed yet.
+  marketplace:
+    name: Point the marketplace at the release
+    runs-on: ubuntu-latest
+    needs: release
+    # Enough to push a branch and open a pull request, and no more. Writing to
+    # main directly is not an option to weigh: the organization's require-dco
+    # ruleset lists no bypass actors, so a direct push is refused for this token
+    # exactly as it is for a person.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # main, not the tag. The tag's tree is the thing that was released;
+          # the branch is the thing that advertises it.
+          ref: main
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Pin the entry to this release
+        id: pin
+        env:
+          SHA256: ${{ needs.release.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/dragon-dev-buddy-$version.plugin"
+          manifest=.claude-plugin/marketplace.json
+
+          # Written through jq rather than sed so that a URL or digest which
+          # happens to contain a delimiter cannot corrupt the surrounding JSON,
+          # and to a temporary file first because a redirect into the file being
+          # read truncates it before jq starts.
+          jq --arg url "$url" --arg sha "$SHA256" '
+            (.plugins[] | select(.name == "dragon-dev-buddy") | .source) =
+              {source: "archive", url: $url, sha256: $sha}
+          ' "$manifest" > "$RUNNER_TEMP/marketplace.json"
+          mv "$RUNNER_TEMP/marketplace.json" "$manifest"
+
+          if git diff --quiet -- "$manifest"; then
+            echo "marketplace already points at $GITHUB_REF_NAME; nothing to open"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git --no-pager diff -- "$manifest"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ci.yml will not run on the pull request this job opens: GitHub does not
+      # start workflows for events raised with GITHUB_TOKEN, so a reviewer would
+      # see a pull request with no checks on it at all. The suite runs here
+      # instead, against the edited tree, so nothing is opened unless it is
+      # green — including TestMarketplaceSourceIsAPinnedRelease, which is the
+      # check that the URL and digest written above are well formed and name a
+      # release the changelog records.
+      - name: Test the edited tree
+        if: steps.pin.outputs.changed == 'true'
+        run: go test ./...
+
+      - name: Open the pull request
+        if: steps.pin.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="marketplace/$GITHUB_REF_NAME"
+
+          # The require-dco ruleset checks for the trailer on every commit, so
+          # -s is not a courtesy here — without it the branch cannot be merged.
+          # The identity is the one GitHub attributes these commits to anyway,
+          # so the trailer matches the author the DCO app reads.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git commit -s -am "Point the marketplace at $GITHUB_REF_NAME"
+
+          # Force is reachable only by re-running this workflow for the same
+          # tag: the branch is named after that tag, and no other job writes to
+          # it. A re-run should replace its own last attempt rather than fail.
+          git push --force origin "$branch"
+
+          if gh pr view "$branch" --json number >/dev/null 2>&1; then
+            echo "a pull request is already open for $branch; the push updated it"
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "Point the marketplace at $GITHUB_REF_NAME" \
+            --body "$(cat <<BODY
+          The $GITHUB_REF_NAME release asset is published, so the marketplace entry
+          can now be pinned to it. Generated by the release workflow.
+
+          The digest was taken from the asset downloaded back out of the release,
+          and \`go test ./...\` passed against this tree before the pull request
+          was opened — worth knowing, because GitHub does not run ci.yml on a pull
+          request opened with GITHUB_TOKEN, so the checks below will be empty.
+
+          Merging needs the sign-off passed to the merge commit as well:
+
+          \`\`\`
+          gh pr merge --squash --body "Signed-off-by: <you> <you@example.com>"
+          \`\`\`
+
+          Signed-off-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          BODY
+          )"

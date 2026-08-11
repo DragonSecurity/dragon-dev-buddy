@@ -8,14 +8,20 @@
 // of defect is what this package exists to make loud.
 //
 // The release metadata is the same problem wearing a different hat. The pack's
-// version is written down three times — in the plugin manifest, in the
-// marketplace entry that advertises it, and at the top of the changelog — and
-// nothing at runtime reads two of them together. When they disagree, installs
-// keep succeeding: the marketplace hands out a version number that no longer
+// version is written down twice — in the plugin manifest and at the top of the
+// changelog — and nothing at runtime reads them together. When they disagree,
+// installs keep succeeding: the pack hands out a version number that no longer
 // describes the contents, and Claude Code's auto-update compares the installed
 // version against a published one that never moved, so nobody is offered the
 // change. The loaders below exist so the copies can be compared to each other in
 // a test instead of trusted.
+//
+// The marketplace entry used to hold a third copy. It no longer does: Claude
+// Code reads plugin.json's version ahead of the entry's, so the copy was never
+// the one that decided anything, and the release workflow now rewrites the entry
+// after the tag — which would have left the two disagreeing on main every time.
+// What the entry is checked for instead is that its archive source points at a
+// release this repository actually cut, pinned by digest.
 package skillpack
 
 import (
@@ -154,14 +160,63 @@ func (v Version) Compare(o Version) int {
 	return 0
 }
 
+// MarketplaceSource is where a marketplace entry says the plugin is fetched
+// from. Claude Code accepts it in two shapes: a bare string, which is a path
+// relative to the marketplace root, or an object whose own `source` field names
+// a type. Decoding it as one or the other is not optional — a string field
+// silently fails to unmarshal the object form, and the entry then reads as
+// having no source at all.
+type MarketplaceSource struct {
+	// Type is the object form's `source` field, or "path" for the string form.
+	Type string
+	// Path is set for the string form only.
+	Path string
+	// URL and SHA256 carry an `archive` source: the zip to download and the
+	// digest it has to hash to. The digest is what makes the source immutable,
+	// so a source that has a URL and no digest is a weaker pin, not an
+	// equivalent one.
+	URL    string
+	SHA256 string
+}
+
+// UnmarshalJSON accepts both shapes. An unknown object type decodes fine and
+// keeps its Type, because this repository's tests are the only caller and they
+// assert on the type they expect rather than on the set Claude Code supports —
+// which grows, and would otherwise turn every new source type into a parse
+// error here.
+func (s *MarketplaceSource) UnmarshalJSON(raw []byte) error {
+	var str string
+	if err := json.Unmarshal(raw, &str); err == nil {
+		*s = MarketplaceSource{Type: "path", Path: str}
+		return nil
+	}
+
+	var obj struct {
+		Source string `json:"source"`
+		URL    string `json:"url"`
+		SHA256 string `json:"sha256"`
+	}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return fmt.Errorf("source is neither a path string nor a source object: %w", err)
+	}
+	*s = MarketplaceSource{Type: obj.Source, URL: obj.URL, SHA256: obj.SHA256}
+	return nil
+}
+
 // MarketplacePlugin is one entry in a marketplace's plugin list. Every field
 // except Source is a second copy of something plugin.json already says.
+//
+// Version is deliberately absent. Claude Code resolves a plugin's version from
+// plugin.json first and the marketplace entry only after it, so a version here
+// is never read while plugin.json declares one — and because the release
+// workflow updates this file in a pull request cut *after* the tag, a copy here
+// would sit one release behind plugin.json on main for as long as that pull
+// request is open.
 type MarketplacePlugin struct {
-	Name        string `json:"name"`
-	Source      string `json:"source"`
-	Description string `json:"description"`
-	Version     string `json:"version"`
-	Author      Author `json:"author"`
+	Name        string            `json:"name"`
+	Source      MarketplaceSource `json:"source"`
+	Description string            `json:"description"`
+	Author      Author            `json:"author"`
 }
 
 // Marketplace is the .claude-plugin/marketplace.json manifest.
