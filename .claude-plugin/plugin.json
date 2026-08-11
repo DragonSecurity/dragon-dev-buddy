@@ -1,6 +1,6 @@
 {
   "name": "dragon-dev-buddy",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Ship code that survives contact with an attacker: threat modeling, secure build and review, dependency and secret audits, vulnerability triage, hardening, incident response and reporting. Every skill reports to your buddy MCP companion, which levels up as you work and learns which skill fits which task.",
   "author": {
     "name": "DragonSecurity"

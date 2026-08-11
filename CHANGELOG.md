@@ -4,6 +4,56 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.4.3 — 2026-08-11
+
+### Changed
+
+- **The pack is now published as the zip it builds, not the tree it builds
+  from.** The marketplace entry's source was `"./"`, which resolves to the
+  checkout sitting beside `marketplace.json`. That is why the bundle could be
+  wrong for two releases without anyone here noticing: in a working tree every
+  file a skill reaches for exists whether or not `build-plugin.sh` packs it, so
+  1.4.0 and 1.4.1 installed a working `git-guardrails` on this machine and a
+  broken one everywhere else.
+
+  The entry is now an `archive` source — the release asset, pinned by SHA-256.
+  The artifact being distributed is the artifact being run, so a file left out
+  of the bundle now fails the install for everybody, including whoever left it
+  out. The digest matters as much as the URL: a release asset can be deleted and
+  re-uploaded, so an unpinned URL would be no more immutable than a moved tag.
+
+  Nothing changes for anyone installing from a local checkout, which is a
+  separate marketplace.
+
+- **The marketplace entry no longer carries a `version`.** Claude Code resolves
+  a plugin's version from `plugin.json` before the marketplace entry, so this
+  copy never decided anything. It is also unkeepable now that the release
+  workflow rewrites the entry after the tag: it would sit one release behind
+  `plugin.json` for as long as the generated pull request stayed open, failing a
+  check on every single release.
+
+- **The release workflow points the marketplace at each release it cuts.** A new
+  `marketplace` job rewrites the entry's URL and digest and opens a pull request
+  with the change. It is a pull request rather than a push because the
+  organization's `require-dco` ruleset lists no bypass actors — `GITHUB_TOKEN`
+  is refused on `main` exactly as a person is. The digest is taken from the
+  asset downloaded back out of the release rather than the file on the runner,
+  since the pin describes what users fetch; the two are compared and a mismatch
+  fails the release.
+
+  GitHub does not start workflows for events raised with `GITHUB_TOKEN`, so
+  `ci.yml` will not run on that generated pull request and its check list will
+  be empty. The job runs `go test ./...` against the edited tree before opening
+  it, so a red tree never becomes a pull request.
+
+- `TestMarketplaceSourceResolvesToThisPack` is now
+  `TestMarketplaceSourceIsAPinnedRelease`, holding the entry to an archive
+  source with a well-formed digest and a URL naming a version the changelog
+  records. It checks against *a* released version rather than the newest one on
+  purpose: between the tag and the generated pull request merging, the entry
+  legitimately points one release back, and a check that goes red on every
+  release is a check that gets turned off.
+
 ## 1.4.2 — 2026-08-11
 
 ### Fixed
