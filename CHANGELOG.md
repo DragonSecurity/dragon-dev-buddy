@@ -4,6 +4,55 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.4.2 — 2026-08-11
+
+### Fixed
+
+- **Two skills shipped an install step that could not work anywhere but this
+  checkout.** `git-guardrails` tells the user to copy
+  `${CLAUDE_PLUGIN_ROOT}/scripts/block-dangerous-git.sh`, and `runbook-wizard`
+  copies `${CLAUDE_PLUGIN_ROOT}/scripts/wizard-template.sh`. Neither file was in
+  the list `scripts/build-plugin.sh` zips, so neither was in the bundle: from a
+  marketplace install the copy fails, nothing is written, and the only symptom is
+  a shell error the user has to already be reading for.
+
+  For `git-guardrails` that is the precise failure the skill was written to
+  prevent. Its own reference explains that a hook which fails open is worse than
+  no hook, because what remains is a belief that destructive git is impossible
+  here — and a guard that was never installed at all is that same belief with
+  even less behind it. It was broken for every install of 1.4.0 and 1.4.1; only
+  this repository, which happens to hold the file at the path the skill names,
+  ever worked.
+
+- **`THIRD-PARTY-NOTICES.md` is now in the bundle.** Six skills in it are derived
+  from MIT-licensed work, and MIT requires its notice to travel with substantial
+  portions. A copy that exists only in this repository does nothing for someone
+  holding the installed plugin, which is the artifact those skills actually reach
+  people through.
+
+### Added
+
+- `TestBundledScriptsExist` reads the zip list in `scripts/build-plugin.sh` and
+  requires every `${CLAUDE_PLUGIN_ROOT}` path a skill names to both exist and be
+  bundled. Checking only that the file exists passes in this checkout forever,
+  which is exactly how the defect above survived two releases. Confirmed to
+  discriminate: against the 1.4.1 build script it names all three missing files.
+- `TestNoticesShipWithTheBundle`, holding the licence obligation to the artifact
+  rather than to the repository.
+- CI's shipped-file list now includes the three scripts an install receives and
+  the notices file, so changing one without bumping the version fails the build.
+  It names them individually rather than taking all of `scripts/`, because that
+  directory also holds the build and the checks, which ship to nobody.
+
+### Changed
+
+- This repository now installs its own guard, at `.claude/settings.json`, pointed
+  at `scripts/block-dangerous-git.sh` rather than at a copy under
+  `.claude/hooks/`. The skill tells other repositories to copy the script,
+  because there the source is a version-keyed plugin path that a link would
+  dangle into on the next update. Here the repository *is* the source, so a
+  second copy would only be a file free to drift from the one the tests run.
+
 ## 1.4.1 — 2026-08-11
 
 ### Fixed
