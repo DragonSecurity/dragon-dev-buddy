@@ -82,7 +82,12 @@ jobs:
           # it is not a skill: buddy-setup writes .dragon-buddy/config.json from
           # it, so a key added there is a key every later skill goes looking for
           # in a config that was written before the key existed.
-          shipped=(skills hooks .mcp.json config.example.json)
+          # Everything an install actually receives. The scripts are listed one
+          # by one rather than as `scripts`, because that directory also holds
+          # the build and the checks, which ship to nobody and should not force
+          # a version bump when they change.
+          shipped=(skills hooks .mcp.json config.example.json THIRD-PARTY-NOTICES.md
+            scripts/pre-commit-memory-guard.sh scripts/block-dangerous-git.sh scripts/wizard-template.sh)
           if ! git diff --quiet "$base" HEAD -- "${shipped[@]}"; then
             echo "::error file=$manifest::${shipped[*]} — one of these changed but the version is still $new; bump it, or an autoupdating marketplace can never pull this"
             git diff --name-only "$base" HEAD -- "${shipped[@]}"

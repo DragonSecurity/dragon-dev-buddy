@@ -891,3 +891,77 @@ func scriptNames(command string) []string {
 	}
 	return out
 }
+
+// pluginRootRef matches a path a skill tells the user to reach through
+// ${CLAUDE_PLUGIN_ROOT} — the installed pack's directory. It is the only way a
+// skill can name a file that is not one of its own sidecars.
+var pluginRootRef = regexp.MustCompile(`\$\{CLAUDE_PLUGIN_ROOT\}/([A-Za-z0-9._/-]+)`)
+
+// TestBundledScriptsExist is the check that was missing when git-guardrails and
+// runbook-wizard shipped in 1.4.0.
+//
+// Both told the user to copy a script out of ${CLAUDE_PLUGIN_ROOT}/scripts/, and
+// neither script was in the list build-plugin.sh zips. In this checkout the file
+// is right there and every install step appears to work; from a marketplace
+// install the copy fails, the hook is never written, and the only symptom is a
+// shell error the user has to be reading for. A guard that was never installed
+// is the one failure mode the guard skill exists to prevent, so it is worth a
+// test that reads the bundle list rather than the working tree.
+//
+// Both halves are checked: the referenced file exists at all, and the bundle
+// carries it. The first alone passes in this repository forever.
+func TestBundledScriptsExist(t *testing.T) {
+	build := readFile(t, "scripts/build-plugin.sh")
+
+	// The zip invocation is the authority on what an install receives. Reading
+	// it as text keeps one list rather than a second copy that drifts from it.
+	zipArgs, _, found := strings.Cut(build, "-x '*.DS_Store'")
+	if !found {
+		t.Fatal("scripts/build-plugin.sh: cannot find the zip argument list; this test reads it to learn what ships")
+	}
+	if _, after, ok := strings.Cut(zipArgs, "zip -r -q \"$out\""); ok {
+		zipArgs = after
+	}
+
+	bundled := func(path string) bool {
+		for _, line := range strings.Split(zipArgs, "\n") {
+			entry := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), "\\"))
+			if entry == "" {
+				continue
+			}
+			// A bundled directory carries everything under it.
+			if entry == path || strings.HasPrefix(path, entry+"/") {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, s := range loadSkills(t) {
+		for _, m := range pluginRootRef.FindAllStringSubmatch(s.Body, -1) {
+			ref := m[1]
+			if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(ref))); err != nil {
+				t.Errorf("%s: points at ${CLAUDE_PLUGIN_ROOT}/%s, which does not exist in the pack", s.Path(), ref)
+				continue
+			}
+			if !bundled(ref) {
+				t.Errorf("%s: points at ${CLAUDE_PLUGIN_ROOT}/%s, which scripts/build-plugin.sh does not zip; the file is present here but absent from every install, so the step fails for everyone but you", s.Path(), ref)
+			}
+		}
+	}
+}
+
+// TestNoticesShipWithTheBundle keeps the pack's MIT obligation attached to the
+// material it covers. Six skills are derived from MIT-licensed work, and the
+// licence requires its notice to travel with substantial portions — the copy in
+// this repository does nothing for someone holding only the installed plugin.
+func TestNoticesShipWithTheBundle(t *testing.T) {
+	build := readFile(t, "scripts/build-plugin.sh")
+	if !strings.Contains(build, "THIRD-PARTY-NOTICES.md") {
+		t.Error("scripts/build-plugin.sh does not zip THIRD-PARTY-NOTICES.md; the bundle ships MIT-derived skills without the notice that licence requires to travel with them")
+	}
+	notices := readFile(t, "THIRD-PARTY-NOTICES.md")
+	if !strings.Contains(notices, "MIT License") {
+		t.Error("THIRD-PARTY-NOTICES.md no longer reproduces the MIT licence text")
+	}
+}

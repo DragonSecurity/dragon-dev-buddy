@@ -43,15 +43,25 @@ out="dist/dragon-dev-buddy-$version.plugin"
 mkdir -p dist
 rm -f "$out"
 
+# Every script named here is one a skill tells the user to copy out of
+# ${CLAUDE_PLUGIN_ROOT}. A skill whose script is missing from this list installs
+# nothing and says so only if the user reads the shell error -- which is how
+# git-guardrails and runbook-wizard shipped in 1.4.0 with install steps that
+# could not work anywhere but this checkout. TestBundledScriptsExist holds the
+# list against what the skills actually reference, so adding a skill that ships
+# a script fails the build until the script is added here.
 zip -r -q "$out" \
 	.claude-plugin \
 	skills \
 	hooks \
 	.mcp.json \
 	scripts/pre-commit-memory-guard.sh \
+	scripts/block-dangerous-git.sh \
+	scripts/wizard-template.sh \
 	config.example.json \
 	README.md \
 	LICENSE \
+	THIRD-PARTY-NOTICES.md \
 	-x '*.DS_Store' '.claude-plugin/marketplace.json'
 
 echo "built $out (v$version, $(unzip -l "$out" | tail -1 | awk '{print $2}') files)" >&2
