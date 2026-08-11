@@ -97,6 +97,12 @@ jobs:
       - name: The observe gate behaves
         run: ./scripts/check-observe-gate.sh
 
+      # The guard is the other hook that decides whether a command runs, and it
+      # fails in two directions: it can stop refusing, and it can start refusing
+      # ordinary work. The second is what shipped in 1.4.0, so both tables run.
+      - name: The git guard behaves
+        run: ./scripts/check-git-guardrails.sh
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod

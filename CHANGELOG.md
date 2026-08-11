@@ -4,6 +4,40 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.4.1 — 2026-08-11
+
+### Fixed
+
+- **The git guard no longer refuses `git push --tags`.** A push with no refspec
+  sends the current branch, so that is the destination the guard judges. `--tags`
+  is the exception: it sends tags and no branch at all, and the fallback read it
+  as a push *of* whatever branch you were standing on. From `main` — which is
+  exactly where you stand when cutting a release, having just fast-forwarded to
+  the merge commit — publishing a release was refused by `push-protected`, citing
+  a branch the command was never going to touch.
+
+  `--follow-tags` is deliberately not included in the fix: it pushes the current
+  branch alongside the tags, so from `main` it is a push to `main` and is still
+  refused. An explicit refspec is still judged either way, so
+  `git push origin main --tags` remains blocked.
+
+  This is the failure mode the skill itself warns about — a guard that blocks
+  ordinary work gets uninstalled, and an uninstalled guard protects nothing —
+  reached by a rule that was individually correct, through a fallback three
+  functions away from it.
+
+### Added
+
+- `scripts/check-git-guardrails.sh`, and a CI step that runs it. The guard
+  shipped in 1.4.0 with no automated test and the defect above was found by hand
+  during an install. It runs 48 cases against the real script, in a throwaway
+  repository whose checked-out branch it controls, because a third of the rules
+  depend on the branch the caller is standing on and running them in the pack's
+  own checkout would make the result depend on whoever last ran `git checkout`.
+  The allow table is longer than the block table on purpose: a guard that starts
+  refusing ordinary work fails as completely as one that stops refusing, and only
+  the first kind gets uninstalled.
+
 ## 1.4.0 — 2026-08-10
 
 Six new skills, taking the pack from 21 to 27, and four harvests into skills

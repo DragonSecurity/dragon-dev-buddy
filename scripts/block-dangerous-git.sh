@@ -200,7 +200,7 @@ strip_quotes() {
 }
 
 analyze_push() {
-	local force=0 mirror=0 skipnext=0 a d spec
+	local force=0 mirror=0 tagsonly=0 skipnext=0 a d spec
 	local -a pos=()
 	for a in ${ARGS[@]+"${ARGS[@]}"}; do
 		if [ "$skipnext" -eq 1 ]; then
@@ -210,6 +210,10 @@ analyze_push() {
 		case "$a" in
 		--force | --force-with-lease* | --force-if-includes) force=1 ;;
 		--mirror | --prune) mirror=1 ;;
+		# --tags pushes tags and no branch. --follow-tags is a different flag
+		# that pushes the current branch *and* the tags reachable from it, so
+		# it deliberately does not match here and keeps the branch fallback.
+		--tags) tagsonly=1 ;;
 		-o | --push-option | --receive-pack | --exec | --repo) skipnext=1 ;;
 		--*) ;;
 		-[A-Za-z]*)
@@ -240,7 +244,13 @@ analyze_push() {
 		i=$((i + 1))
 	done
 
+	# A push with no refspec sends the current branch, so that is what gets
+	# judged. The exception is --tags, which sends tags and no branch at all:
+	# falling back to the current branch there reads `git push --tags` from the
+	# release branch as a push *of* that branch and refuses the step that
+	# publishes a release. An explicit refspec is still judged, --tags or not.
 	if [ "${#specs[@]}" -eq 0 ]; then
+		[ "$tagsonly" -eq 1 ] && return 0
 		specs=("$(current_branch)")
 	fi
 
