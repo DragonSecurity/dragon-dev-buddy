@@ -277,11 +277,16 @@ func TestMarketplaceEntryMatchesManifest(t *testing.T) {
 		t.Fatalf(".claude-plugin/marketplace.json lists no plugin named %q; the marketplace this repository publishes about itself has to list itself", p.Name)
 	}
 
+	// Version is not compared, because the entry no longer carries one. Claude
+	// Code resolves plugin.json's version ahead of the marketplace entry's, so a
+	// copy here never decided anything — and the release workflow rewrites this
+	// file in a pull request cut after the tag, which would leave the two
+	// disagreeing on main for as long as that pull request stayed open. A check
+	// guaranteed to go red on every release is a check that gets deleted.
 	for _, f := range []struct {
 		field           string
 		entry, manifest string
 	}{
-		{"version", entry.Version, p.Version},
 		{"description", entry.Description, p.Description},
 		{"author.name", entry.Author.Name, p.Author.Name},
 	} {
@@ -291,13 +296,30 @@ func TestMarketplaceEntryMatchesManifest(t *testing.T) {
 	}
 }
 
-// TestMarketplaceSourceResolvesToThisPack checks that the entry points at the
-// plugin sitting next to it. `source` is the only field that is not a copy of
-// plugin.json, which is exactly why nothing else here would catch it being
-// wrong: a self-listing marketplace whose source has drifted installs a
-// different pack than the one whose version and description it advertises, and
-// the install still succeeds.
-func TestMarketplaceSourceResolvesToThisPack(t *testing.T) {
+// releaseAssetURL matches the download URL of a release asset this repository
+// publishes, capturing the tag's version and the filename's version separately
+// so the two can be required to agree.
+var releaseAssetURL = regexp.MustCompile(
+	`^https://github\.com/DragonSecurity/dragon-dev-buddy/releases/download/v(\d+\.\d+\.\d+)/dragon-dev-buddy-(\d+\.\d+\.\d+)\.plugin$`,
+)
+
+// sha256Hex is a SHA-256 digest written the way Claude Code accepts it: 64 hex
+// characters, either case.
+var sha256Hex = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
+
+// TestMarketplaceSourceIsAPinnedRelease checks the one field that is not a copy
+// of plugin.json. The entry used to point at "./", the checkout beside it, and
+// that is why the bundle could be wrong for two releases without anyone
+// noticing: a relative source installs the working tree, where every file a
+// skill reaches for exists whether or not build-plugin.sh packs it. An archive
+// source installs the zip, so the thing being distributed is the thing being
+// run, and a file missing from the bundle fails the install instead of only
+// failing for other people.
+//
+// The digest is the other half. Without it the URL is a mutable location — a
+// release asset can be deleted and re-uploaded — and "pinned to a release" would
+// mean no more than a moved tag does.
+func TestMarketplaceSourceIsAPinnedRelease(t *testing.T) {
 	p := loadPlugin(t)
 
 	m, err := skillpack.LoadMarketplace(root)
@@ -309,34 +331,37 @@ func TestMarketplaceSourceResolvesToThisPack(t *testing.T) {
 		t.Fatalf(".claude-plugin/marketplace.json lists no plugin named %q", p.Name)
 	}
 
-	if entry.Source == "" {
-		t.Fatal("marketplace entry has no source; Claude Code would not know what to install")
-	}
-	if !strings.HasPrefix(entry.Source, ".") {
-		t.Fatalf("marketplace source = %q, want a path relative to the repository root; this marketplace exists to publish the pack it ships with, and a remote source would publish somebody else's copy of it", entry.Source)
+	if entry.Source.Type != "archive" {
+		t.Fatalf("marketplace source type = %q, want \"archive\"; the pack is published as the zip its release workflow builds, and any other source type installs a tree that was never bundled", entry.Source.Type)
 	}
 
-	resolved, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(entry.Source)))
-	if err != nil {
-		t.Fatalf("resolving marketplace source: %v", err)
-	}
-	packRoot, err := filepath.Abs(root)
-	if err != nil {
-		t.Fatalf("resolving pack root: %v", err)
-	}
-	if resolved != packRoot {
-		t.Errorf("marketplace source %q resolves to %s, want the repository root %s", entry.Source, resolved, packRoot)
+	if !sha256Hex.MatchString(entry.Source.SHA256) {
+		t.Errorf("marketplace source sha256 = %q, want 64 hex characters; without a digest Claude Code installs whatever is at the URL today", entry.Source.SHA256)
 	}
 
-	// And the plugin it names is really there — the check that would still fail
-	// if the source pointed at a sibling directory that resolves fine and holds
-	// no plugin.
-	installed, err := skillpack.LoadPlugin(resolved)
-	if err != nil {
-		t.Fatalf("marketplace source %q has no readable plugin manifest: %v", entry.Source, err)
+	match := releaseAssetURL.FindStringSubmatch(entry.Source.URL)
+	if match == nil {
+		t.Fatalf("marketplace source url = %q, want a dragon-dev-buddy release asset of the form https://github.com/DragonSecurity/dragon-dev-buddy/releases/download/vX.Y.Z/dragon-dev-buddy-X.Y.Z.plugin", entry.Source.URL)
 	}
-	if installed.Name != entry.Name {
-		t.Errorf("marketplace source %q holds the plugin %q, but the entry advertises %q", entry.Source, installed.Name, entry.Name)
+	tagVersion, fileVersion := match[1], match[2]
+	if tagVersion != fileVersion {
+		t.Errorf("marketplace source url points at tag v%s but asset dragon-dev-buddy-%s.plugin; build-plugin.sh names the file after the manifest, so these disagreeing means the URL was hand-edited", tagVersion, fileVersion)
+	}
+
+	// The URL has to name a release that exists, but deliberately not the
+	// newest one. The release workflow rewrites this entry in a pull request it
+	// opens *after* the tag is pushed, so between the release and that merge the
+	// entry legitimately points one version back. Requiring the newest here
+	// would fail every release during exactly that window.
+	released := false
+	for _, r := range loadReleases(t) {
+		if r.Version.String() == tagVersion {
+			released = true
+			break
+		}
+	}
+	if !released {
+		t.Errorf("marketplace source url points at v%s, which CHANGELOG.md does not record as a release; the entry may only point at a version that was actually cut, because Claude Code fails the install outright when the asset 404s", tagVersion)
 	}
 }
 
