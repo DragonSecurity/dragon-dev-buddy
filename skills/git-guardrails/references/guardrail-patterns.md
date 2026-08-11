@@ -23,6 +23,8 @@ Not because the push is destructive — a fast-forward to `main` destroys nothin
 
 Destination is parsed properly, not prefix-matched: `git push origin feature:main`, `git push origin HEAD:refs/heads/main`, `git push origin :main` (a deletion), and a bare `git push` while `main` is checked out all resolve to the same protected destination.
 
+The branch a bare push resolves to is the one you are standing on, which makes `--tags` the exception worth stating: it pushes tags and no branch, so there is no destination to protect and it is allowed even from `main`. `--follow-tags` is a different flag — it pushes the current branch alongside the tags — and is judged as the branch push it is. This is the distinction 1.4.0 got wrong, refusing `git push --tags` from `main` and so refusing the step that publishes a release; `scripts/check-git-guardrails.sh` now holds both cases so the fix cannot quietly reverse.
+
 ### `push-mirror` — `--mirror`, `--prune`
 
 Both delete remote refs that are absent locally. A branch a colleague pushed this morning and you have not fetched is gone, along with its commits. This is the most surprising entry on the list precisely because neither flag has "force" in its name.
