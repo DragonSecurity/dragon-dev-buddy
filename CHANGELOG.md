@@ -4,6 +4,8 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.5.0 — 2026-08-18
+
 ### Added
 
 - **`related_repos` in the config, so a repo can say which other repos it is
