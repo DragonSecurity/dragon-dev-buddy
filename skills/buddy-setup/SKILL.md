@@ -37,6 +37,7 @@ If the user already described the project in this conversation, use their words 
 2. **Confirm the draft, batch one.** Show what you inferred and ask the user to correct it, all in one message:
    - "Here's what I read off the repo: [name], [language/stack], tests via `[command]`, deploys to [target]. Right?"
    - "One sentence: what does this system actually do, and for whom?"
+   - "Any other repos this one is entangled with? The one that consumes it, the one it ships or deploys alongside, the upstream it gets confused for." Record what the user names into `related_repos`, with a relative `path` when it is checked out beside this repo. Directory adjacency is not evidence — a projects folder holds dozens of siblings and proximity says nothing about entanglement.
 
 3. **Ask batch two, the exposure questions.** These are not in the code and they drive every severity rating this pack will ever produce. Ask all three together:
    - Who can reach it? Internal only, authenticated users, or open to the public internet?
@@ -77,6 +78,7 @@ If the user already described the project in this conversation, use their words 
 
 ```
 Read off the repo: [stack summary]
+Related repos: [name — relation, one per line — or omit the line entirely if this repo stands alone]
 Exposure: [level] · Data: [sensitivity] · Compliance: [list or none]
 Trust boundaries: [list or "to be derived in threat-model"]
 Tooling: tests `[cmd]` · SCA [tool] · SAST [tool] · secrets [tool]
@@ -124,6 +126,7 @@ See `examples/buddy-setup-run.md` for a complete onboarding run. Treat it as the
 - No more than three messages of questions, batched.
 - `exposure` and `data_sensitivity` are set to real values, never left as placeholders. Every severity rating downstream depends on them.
 - The `engagement` block is empty for ordinary internal work rather than filled with invented values.
+- Every entry in `related_repos` is one the user named out loud. A repo was never added because it sat in the same parent directory.
 - `.dragon-buddy/config.json` is valid JSON: no trailing commas, no smart quotes, no comments outside the `_comment` keys.
 - The buddy card is shown exactly as returned, not paraphrased or summarized.
 - The three next-skill recommendations are specific to this repo. A public payments API and an internal CLI do not get the same list.

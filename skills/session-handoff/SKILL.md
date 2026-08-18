@@ -13,7 +13,7 @@ The second thing this skill takes seriously is that in this pack a handoff is mo
 
 ## First-run check
 
-Read `.dragon-buddy/config.json`. A handoff is frequently written under time pressure, so a missing config is not fatal — work from what the session already knows, say so, and offer `dragon-dev-buddy:buddy-setup` afterwards rather than stopping to run it now. Pull if present: `project.name` for the header, `security.data_sensitivity` and `engagement.authorized_scope` to set how aggressive the redaction pass has to be, `engagement.contact` for who is allowed to receive the file, and `output.reports_dir` **so you can avoid it** — that directory is committed and shared, and a handoff never goes there.
+Read `.dragon-buddy/config.json`. A handoff is frequently written under time pressure, so a missing config is not fatal — work from what the session already knows, say so, and offer `dragon-dev-buddy:buddy-setup` afterwards rather than stopping to run it now. Pull if present: `project.name` for the header, `security.data_sensitivity` and `engagement.authorized_scope` to set how aggressive the redaction pass has to be, `engagement.contact` for who is allowed to receive the file, and `output.reports_dir` **so you can avoid it** — that directory is committed and shared, and a handoff never goes there. Pull `related_repos` when the work in flight crosses a repo boundary — the pickup is often on another machine, where a relative `path` resolves to nothing or to the wrong checkout, so the handoff has to carry the `url` too.
 
 ## Inputs
 
@@ -41,7 +41,7 @@ Do not ask for the goal, the file list, or what was tried. You were there.
 
 3. **Draft what a cold reader needs**, in this order: the goal in one sentence; what is done; what is in flight and its **exact** state; what was ruled out and why; the next concrete action. The in-flight section is where handoffs fail — "refactoring the auth middleware" is not a state, "`src/auth/mw.ts` has the new signature applied to three of five call sites, `billing.ts` and `webhook.ts` still call the old one and the build is red" is.
 
-4. **Reference, do not restate.** Anything already captured in an artifact — a spec, a threat model, an ADR, an issue, a commit, a diff, a report under `output.reports_dir` — is named by path, SHA or URL, never copied in. A handoff that restates the diff is longer than the diff, goes stale the moment someone commits, and buries the five lines that were actually only in your head.
+4. **Reference, do not restate.** Anything already captured in an artifact — a spec, a threat model, an ADR, an issue, a commit, a diff, a report under `output.reports_dir` — is named by path, SHA or URL, never copied in. A handoff that restates the diff is longer than the diff, goes stale the moment someone commits, and buries the five lines that were actually only in your head. When the artifact lives in another repository, name that repo from `related_repos` and reference it by `url` as well as by path. A relative path is only a reference on a machine that lays its checkouts out the same way; to a cold reader somewhere else it is a guess.
 
 5. **Redact. Every run, no exceptions.** Go through the draft looking for what the transcript put there: API keys, tokens, passwords, session cookies, connection strings with credentials in them, private IPs and hostnames you are not authorised to spread, customer names and identifiers, attacker infrastructure, and anything from an engagement under NDA. Every secret value becomes a named placeholder (`<REDACTED: staging DB password, in 1Password under "staging-db">`) so the next session knows what to fetch and from where. People under NDA are named by role — "the customer's platform lead" — not by identity. The checklist is in `references/handoff-contents.md`; walk it rather than eyeballing.
 
@@ -94,6 +94,7 @@ guess whether an edit was finished.>
 
 ## Artifacts
 - <path / URL / SHA> — <what it holds>
+- <other repo, by name and url> — <path / SHA within it> — <what it holds; only when the work crosses a repo boundary>
 
 ## Suggested skills
 - `<skill>` — <why it applies here>
@@ -137,6 +138,7 @@ See `examples/session-handoff-run.md` for a handoff written mid-incident at a sh
 - Rejected approaches were listed with what killed each one, so the next session does not spend the same hours reaching the same wall.
 - The handoff ended in one concrete next action, not a menu of options.
 - Nothing already in a spec, ADR, issue, commit or diff was restated; each was referenced by path, SHA or URL.
+- Any artifact in another repository was named by repo and `url`, not by a relative path alone. A path that resolves only on the machine the handoff was written on is not a reference.
 - Every secret became a placeholder naming what it is and where the real value lives. No key, token, password, connection string, customer identifier or NDA-covered name survived into the file.
 - The file was written to the OS temporary directory, outside the repository, and not into `output.reports_dir` — verified against the repository root, not assumed.
 - The suggested-skills section named skills that exist in this pack, each with the reason it applies — or, where the handoff was leaving this pack, spelled the same guidance out as instructions a reader without it can follow.

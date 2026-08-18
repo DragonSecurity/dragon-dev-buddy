@@ -10,6 +10,18 @@
     "runtime": "[e.g. Cloudflare Workers, Kubernetes, Lambda, bare VM]",
     "deploy_target": "[e.g. prod cluster via GitHub Actions]"
   },
+  "related_repos": {
+    "_comment": "Repos this one is meaningfully entangled with -- declared, never inferred from directory adjacency, which means nothing when a projects folder holds dozens of siblings. `path` is relative to this repo root and is the only field anything can resolve; its absence means the repo is not checked out on this machine. `url` is identity only and is an opaque string -- an scp-style remote (git@host:org/repo.git) has no URL scheme to parse. Leave `repos` empty for a repo that stands alone.",
+    "repos": [
+      {
+        "name": "[REPO NAME]",
+        "path": "[RELATIVE PATH e.g. ../other-repo, or omit the key if not checked out here]",
+        "url": "[GIT REMOTE, or omit the key]",
+        "relation": "[e.g. consumer | dependency | fork-parent | distinct-project | shared-deploy]",
+        "what": "[ONE OR TWO SENTENCES: why work here touches there, and what lands there instead of here]"
+      }
+    ]
+  },
   "security": {
     "exposure": "[internal | authenticated | public]",
     "data_sensitivity": "[none | pii | financial | phi | credentials]",
