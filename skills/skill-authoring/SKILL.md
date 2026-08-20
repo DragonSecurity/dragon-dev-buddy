@@ -76,7 +76,9 @@ Ask only for what you cannot read:
 
 9. **Register the skill outside its own directory, then run the tests.** A skill nobody can find is not shipped. Add its row to the right group in the README's Skills table, update the count the README spells out in prose, and add a CHANGELOG entry under `## Unreleased`.
 
-   The version lives in three places: `version` in `.claude-plugin/plugin.json`, the `version` on this pack's entry in `.claude-plugin/marketplace.json`, and the newest release heading in `CHANGELOG.md`. The tests require all three to agree, and they skip `## Unreleased` — so work in flight does not force a bump, and cutting the release means moving all three in one commit. A new skill is a minor bump when that release is cut, because nothing that pointed at the pack has to change.
+   The version lives in two places that must agree: `version` in `.claude-plugin/plugin.json` and the newest release heading in `CHANGELOG.md`. Leave `.claude-plugin/marketplace.json` alone — it pins the release archive by URL and `sha256`, and the release workflow rewrites both on the tag, because the digest cannot be known before the artifact is built.
+
+   `go test ./...` skips `## Unreleased`, so it stays green on a change that never bumped anything. CI does not, and this is the trap: the `Validate the skill pack` job diffs the shipped bundle against the base branch — `skills`, `hooks`, `.mcp.json`, `config.example.json`, `THIRD-PARTY-NOTICES.md` and the three shipped files under `scripts/` — and fails if any of them moved while the version stood still, because an autoupdating marketplace can never pull a change that ships under a version it already has. So editing any skill at all is a version bump in the same pull request, and a green local test run is not evidence you can skip it. A new skill or an added config key is a minor bump: nothing that pointed at the pack has to change.
 
    Finish with `go test ./...`. It checks the frontmatter, the description limit and its `Use when` clause, both directions of every sidecar reference, the presence of a worked example and a Quality bar, the buddy reporting contract, near-miss skill names in backticks, absolute home paths in any markdown file, and the README row and count. Green is the bound on this step.
 
@@ -144,5 +146,5 @@ A good run satisfies all of these:
 - The Buddy section reports this skill's own qualified name and no other's.
 - The draft was pruned: at least one sentence was deleted by the no-op test, and the deletions were named in the report rather than left implied.
 - The README row, the README prose count and the CHANGELOG entry landed in the same change as the skill.
-- `go test ./...` was run and green before the work was called done.
+- `go test ./...` was run and green before the work was called done, and the version was bumped in the same change if anything under the shipped bundle moved. Local green is not the bound; CI checks the bundle against the base branch.
 - Other skills were left untouched. A pack-wide convention change was named as debt, not smuggled into this diff.

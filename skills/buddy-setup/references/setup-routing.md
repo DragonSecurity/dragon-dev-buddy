@@ -60,6 +60,7 @@ For data sensitivity, ask what the worst row in the biggest table is. People des
 | `project.name`, `project.what_it_is` | every skill, for report headers and context |
 | `project.primary_language`, `project.stack` | `secure-code-review`, `dependency-audit`, `security-test-writer` |
 | `project.runtime`, `project.deploy_target` | `hardening-playbook`, `ship-it` |
+| `related_repos.*` | `session-handoff`, so a reference to another repo carries a `url` the next machine can resolve. Otherwise context for any skill reaching outside this repo. `path` is the only field anything can resolve, and its absence means the repo is not checked out here. |
 | `security.exposure` | every skill that assigns severity. The single most important key. |
 | `security.data_sensitivity` | severity ratings, `threat-model` impact scoring, `incident-response` notification duty |
 | `security.compliance` | `pentest-report`, `incident-response`, `hardening-playbook` |

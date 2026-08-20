@@ -4,6 +4,42 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.5.0 — 2026-08-18
+
+### Added
+
+- **`related_repos` in the config, so a repo can say which other repos it is
+  entangled with.** Previously the only way an agent knew that this repo's
+  plugin, SDK or upstream lived next door was a memory file on one machine,
+  which does not travel and is not reviewable. `buddy-setup` now asks for these
+  in the existing batch-one message and records them.
+
+  Two decisions worth keeping. Entanglement is **declared, never inferred** —
+  a projects folder holds dozens of sibling directories and proximity says
+  nothing, so nothing is written that the user did not name. And `path` and
+  `url` are separate optional fields rather than one polymorphic `source`: they
+  answer different questions (can I read it from here, versus which repo is this
+  canonically), a repo commonly has both, and an scp-style remote
+  (`git@host:org/repo.git`) has no URL scheme to parse. `path` is the only field
+  anything can resolve.
+
+  `session-handoff` is the first skill to pull the key by name: a handoff is
+  routinely picked up on a different machine, where a relative path resolves to
+  nothing or to the wrong checkout, so a cross-repo reference now carries the
+  `url` as well.
+
+### Fixed
+
+- **`skill-authoring` step 9 described the release machinery wrongly, in the two
+  ways that cost a CI round.** It said the version lives on an entry in
+  `.claude-plugin/marketplace.json`; that key no longer exists — since 1.4.3 the
+  entry pins a release archive by URL and `sha256`, which the release workflow
+  rewrites on the tag and which nobody should hand-edit. And it said the tests
+  skipping `## Unreleased` means work in flight does not force a bump. That is
+  true of `go test ./...` and false of CI, which fails any change that moves the
+  shipped bundle without moving the version. Editing a skill is a bump in the
+  same pull request, and the quality bar now says so.
+
 ## 1.4.3 — 2026-08-11
 
 ### Changed
