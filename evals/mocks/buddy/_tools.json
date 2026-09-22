@@ -1,0 +1,168 @@
+{
+  "tools": [
+    {
+      "name": "buddy_status",
+      "title": "Check on your buddy",
+      "description": "Show the buddy: stage, level, XP, mood, energy, streak and skill usage. Hatches a new buddy on first use (name and personality are rolled once and kept for life). Safe to call at the start of every conversation. Show the returned card to the user as-is.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "buddy_observe",
+      "title": "Tell your buddy what you did",
+      "description": "Record a completed coding task. Grants XP, may trigger a level-up or evolution, and returns a personality-flavored reaction. Call this after writing code, fixing bugs, refactoring, running tests, or deploying. Pass skills_used listing any skills you invoked, so the buddy learns which skills suit which work and can suggest ones you are missing. Show the returned reaction to the user.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "One sentence describing what was just accomplished, e.g. \"Fixed the off-by-one in the pagination cursor.\""
+          },
+          "kind": {
+            "description": "Optional category override. Inferred from the summary when omitted.",
+            "type": "string",
+            "enum": [
+              "bugfix",
+              "feature",
+              "refactor",
+              "test",
+              "deploy",
+              "docs",
+              "config",
+              "other"
+            ]
+          },
+          "skills_used": {
+            "description": "Skills invoked for this task, e.g. [\"cloudflare:wrangler\"]. Omit if none.",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          }
+        },
+        "required": [
+          "summary"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "buddy_skills",
+      "title": "See what your buddy knows",
+      "description": "List the skills the buddy has discovered across installed plugins, your personal skills directory and the current project, with how often each has been used, which ones you reach for by task kind, and a stocktake of the ones not earning their place: gone quiet, fitting your work but never loaded, or fitting nothing you do.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "buddy_advise",
+      "title": "Ask which skills fit before you start",
+      "description": "Rank the skills worth loading for a task you are about to begin. Combines what the task description says with which skills you have historically used for this kind of work. Call this BEFORE starting non-trivial work, then load any skill it ranks highly. Record what you actually used via buddy_observe(skills_used) so the ranking improves.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "What you are about to do, e.g. \"add a KV binding to the Cloudflare Worker\"."
+          },
+          "kind": {
+            "description": "Optional category override. Inferred from the task when omitted.",
+            "type": "string",
+            "enum": [
+              "bugfix",
+              "feature",
+              "refactor",
+              "test",
+              "deploy",
+              "docs",
+              "config",
+              "other"
+            ]
+          },
+          "limit": {
+            "description": "How many skills to return. Defaults to 3.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "required": [
+          "task"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "buddy_rename",
+      "title": "Rename your buddy",
+      "description": "Change the buddy's name. Personality and progress are unaffected.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "The new name."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ]
+}

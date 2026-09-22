@@ -75,8 +75,8 @@ failing build.
 - **Every skill observes under its own qualified name.** `buddy_observe` with
   someone else's `skills_used` poisons the ranking `buddy_advise` returns, which
   degrades every skill in the pack, not just the one that lied.
-- **No local absolute paths in the docs.** `/Users/...` and `/home/...` fail the
-  build. This repo's own `secrets-and-config-audit` would flag it.
+- **No local absolute paths in the docs, hooks or scripts.** `/Users/...` and
+  `/home/...` fail the build. This repo's own `secrets-and-config-audit` would flag it.
 - **The README lists exactly the skills that exist**, count included.
 - **One version, written in three places, agreeing.** The manifest, the
   marketplace entry and the newest released heading in the changelog carry the
@@ -99,6 +99,24 @@ failing build.
 
 Adding a skill therefore means touching three things: the directory, the README
 table, and nothing else — the tests will tell you if you missed one.
+
+## Routing evals
+
+The tests above prove a skill is well-formed. They cannot prove it gets loaded:
+that is decided by the model reading the description, and the only way to know is
+to ask it. `evals/` holds a `claude plugin eval` suite for exactly that, one case
+per skill whose trigger is easy to confuse with a neighbour's, and one negative
+case that no skill in the pack should fire on.
+
+When you add a skill, or rewrite a description, add or rerun its case:
+
+```sh
+claude plugin eval . --case 'routes-*<skill>*' --runs 3 --ablation none --no-publish
+```
+
+A case is a `prompt.md` written the way a user would actually ask — never naming
+the skill — and a `tool_used: Skill` grader. Every run is a real model call on
+your account, which is why this is not in CI. See [evals/README.md](evals/README.md).
 
 ## Style
 
