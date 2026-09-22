@@ -40,6 +40,8 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, w
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { hookEnabled } from './lib/switches.mjs';
+
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
 const STATE = join(homedir(), '.claude', 'buddy-gate');
 const LOG = join(homedir(), '.claude', 'buddy-gate.log');
@@ -178,6 +180,7 @@ async function readStdin() {
 }
 
 try {
+  if (!hookEnabled('observe-gate')) process.exit(0);
   const payload = JSON.parse(await readStdin());
   // Dispatched by name, with no default. An event this gate was never wired to
   // must not fall through to stop(), which is the one branch that writes a block

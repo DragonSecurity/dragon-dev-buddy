@@ -108,6 +108,17 @@ jobs:
       - name: The git guard behaves
         run: ./scripts/check-git-guardrails.sh
 
+      # The tracker rewrites a tool call's input, which makes it the one hook
+      # that can cost the user an observation outright: a list past the server's
+      # limit is rejected whole. Checked by running it, like the gate.
+      - name: The skill tracker behaves
+        run: ./scripts/check-skill-tracker.sh
+
+      # Runs on every session start in every repo that has memories, so its
+      # budget is the whole of its contract.
+      - name: Project memory behaves
+        run: ./scripts/check-project-memory.sh
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
