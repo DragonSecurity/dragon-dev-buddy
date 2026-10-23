@@ -4,6 +4,52 @@ Notable changes to the pack. Versions track `.claude-plugin/plugin.json`.
 
 ## Unreleased
 
+## 1.6.0 — 2026-09-22
+
+### Added
+
+- **The skill tracker: skills the session loaded reach `skills_used` without the
+  model having to remember them.** `buddy_advise` learns only from the list the
+  model assembles at the end of a task, and every skill it forgets teaches the
+  ranking the one wrong lesson, that the skill was not used. A new
+  `hooks/skill-tracker.mjs` records each successful `Skill` call as it happens
+  and, in a `PreToolUse` hook on `buddy_observe`, merges any the model left out
+  into the call through `updatedInput`.
+
+  Merging at the call rather than having the server read a log afterwards is the
+  design decision: the server has no session id, and a second write would have
+  to guess the kind the observation was classified as. The model's own entries
+  come first and are never edited; the list is held to the server's limit of ten,
+  since past it the whole observation is refused; a name that is not an
+  identifier is dropped; and the rewrite carries no `permissionDecision`, so a
+  call the user has not allowed is still refused (measured, as is the fact that
+  `updatedInput` replaces the input rather than merging into it). The list is
+  deleted only when the observation succeeds, so a failed one is resent with the
+  next.
+
+- **Kill switches for every hook.** `DRAGON_BUDDY_HOOKS=off` turns the pack's
+  hooks off and `DRAGON_BUDDY_DISABLED_HOOKS=observe-gate,skill-tracker,...`
+  turns off the ones named. Before this the only way to drop one hook was to
+  fork the plugin — so in practice a hook that was wrong for someone cost the
+  pack its install. Set in `settings.json`'s `env`, they survive upgrades.
+
+- **A routing eval suite under `evals/`**, for `claude plugin eval`: a case per
+  skill whose trigger is easy to confuse with a neighbour's, and a negative case
+  nothing should fire on. Run by hand, since every case is a real model call.
+  The buddy tools are mocked with the server's real schemas.
+
+### Changed
+
+- **The project-memory listing is held to its budget too.** Past 6000 characters
+  the bodies were already dropped for a one-line-per-memory listing, but nothing
+  bounded the listing, and a long-lived repo accumulates memories without limit.
+  Past the budget the newest are now named and the rest counted.
+  `DRAGON_BUDDY_MEMORY_MAX_CHARS` sets the budget.
+
+- **The personal-path check covers hooks, scripts and config, not only
+  Markdown.** A home path in a hook is not a doc typo but a default that works on
+  one machine and ships to every other.
+
 ## 1.5.0 — 2026-08-18
 
 ### Added

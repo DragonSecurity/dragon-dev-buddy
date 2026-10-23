@@ -23,6 +23,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
+import { hookEnabled } from './lib/switches.mjs';
+
 /** Where memories live, relative to the project root. */
 const DIR = join('.dragon-buddy', 'memories');
 
@@ -31,8 +33,21 @@ const DIR = join('.dragon-buddy', 'memories');
  * descriptions are sent, with the paths to read on demand. Every session pays
  * this cost whether or not a memory turns out to be relevant, so the full text
  * is a convenience for a small set and never a standing tax on a large one.
+ *
+ * The listing is held to the same budget. Descriptions are one line each, but
+ * one line times a few hundred memories is its own standing tax, and nothing
+ * else bounds how many a long-lived repo accumulates. Past it, the newest are
+ * named and the rest are counted, with the directory to list.
+ *
+ * DRAGON_BUDDY_MEMORY_MAX_CHARS overrides it; anything that is not a positive
+ * integer is ignored rather than read as zero, which would silently send nothing.
  */
-const FULL_TEXT_BUDGET = 6000;
+const DEFAULT_BUDGET = 6000;
+
+function budget() {
+  const n = Number.parseInt(String(process.env.DRAGON_BUDDY_MEMORY_MAX_CHARS ?? ''), 10);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_BUDGET;
+}
 
 /** The project root is wherever .dragon-buddy is, searching upward from cwd. */
 function findRoot(start) {
@@ -75,7 +90,7 @@ function collect(root) {
       const path = join(dir, file);
       if (!statSync(path).isFile()) continue;
       const memory = parse(readFileSync(path, 'utf8'), file);
-      if (memory) out.push(memory);
+      if (memory) out.push({ ...memory, mtime: statSync(path).mtimeMs });
     } catch {
       /* one unreadable memory must not cost the others */
     }
@@ -83,7 +98,7 @@ function collect(root) {
   return out;
 }
 
-function render(memories) {
+function render(memories, limit = budget()) {
   const full = memories.reduce((n, m) => n + m.body.length + m.description.length, 0);
 
   const header =
@@ -92,7 +107,7 @@ function render(memories) {
     'what was true when written: if one names a file, function or flag, check it ' +
     'still exists before acting on it.';
 
-  if (full <= FULL_TEXT_BUDGET) {
+  if (full <= limit) {
     const body = memories
       .map((m) => `### ${m.name}\n_${m.description}_\n\n${m.body}`)
       .join('\n\n---\n\n');
@@ -101,10 +116,31 @@ function render(memories) {
 
   // Too much to carry every session. Send the descriptions, which are what a
   // relevance decision actually needs, and the path to read for the rest.
-  const list = memories.map((m) => `- **${m.name}** — ${m.description} (\`${DIR}/${m.file}\`)`);
-  return (
+  const intro =
     `${header}\n\nListed rather than quoted, because the full set exceeds the ` +
-    `context budget. Read the file when one looks relevant.\n\n${list.join('\n')}`
+    'context budget. Read the file when one looks relevant.';
+  const line = (m) => `- **${m.name}** — ${m.description} (\`${DIR}/${m.file}\`)`;
+
+  // Newest first when the list itself has to be cut: a memory written last week
+  // is likelier to be about the code as it stands than one from a year ago.
+  // Kept in name order when everything fits, so the listing does not reshuffle
+  // every time a memory is touched.
+  const byAge = [...memories].sort((a, b) => b.mtime - a.mtime);
+  const shown = [];
+  let used = 0;
+  for (const m of byAge) {
+    const cost = line(m).length + 1;
+    if (used + cost > limit) break;
+    shown.push(m);
+    used += cost;
+  }
+  if (shown.length === memories.length) return `${intro}\n\n${memories.map(line).join('\n')}`;
+
+  const rest = memories.length - shown.length;
+  return (
+    `${intro}\n\n${shown.map(line).join('\n')}\n\n` +
+    `…and ${rest} older ${rest === 1 ? 'memory' : 'memories'} not listed, to stay inside the budget. ` +
+    `List \`${DIR}/\` to see them all.`
   );
 }
 
@@ -115,6 +151,7 @@ async function readStdin() {
 }
 
 try {
+  if (!hookEnabled('project-memory')) process.exit(0);
   let cwd = process.cwd();
   try {
     const payload = JSON.parse(await readStdin());

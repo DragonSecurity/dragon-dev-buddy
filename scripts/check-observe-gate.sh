@@ -89,6 +89,16 @@ ok "resets are logged as resets" "$(grep -c '"event":"reset"' "$log")" "2"
 ok "one voluntary clear" "$(grep -c '"event":"clear".*"had":true' "$log")" "1"
 ok "one block" "$(grep -c '"event":"stop","block":true' "$log")" "1"
 
+# Switched off, the gate neither marks nor blocks. After the log counts above,
+# because the prompt that tidies up here logs a reset of its own.
+run "$edit" >/dev/null
+ok "DRAGON_BUDDY_DISABLED_HOOKS turns the gate off" "$(DRAGON_BUDDY_DISABLED_HOOKS=observe-gate run "$stop")" ""
+ok "the mark it did not consume is still there" "$(marked)" "yes"
+ok "DRAGON_BUDDY_HOOKS=off turns the gate off" "$(DRAGON_BUDDY_HOOKS=off run "$stop")" ""
+run "$prompt" >/dev/null
+DRAGON_BUDDY_HOOKS=off run "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"other\",\"tool_name\":\"Edit\"}" >/dev/null
+ok "an edit while off marks nothing" "$([ -f "$HOME/.claude/buddy-gate/other.dirty" ] && echo yes || echo no)" "no"
+
 # Handling an event is half the claim; the manifest has to send it. The turn
 # boundary is one line of hooks.json away from being dead code that passes every
 # check above it.

@@ -154,20 +154,21 @@ the advice and the reporting.
 
 ### Hooks
 
-Installing this plugin registers two hooks from `hooks/hooks.json`; there is
+Installing this plugin registers its hooks from `hooks/hooks.json`; there is
 nothing to add to `settings.json`.
 
-| Event | What it does |
-| --- | --- |
-| `SessionStart` | Calls `buddy_status` and puts the card in context, so the check-in happens whether or not the model remembers to ask. |
-| `PostToolUse` | Marks the session dirty on an edit, clears the mark on `buddy_observe`. |
-| `Stop` | Blocks once if the session is still dirty, so work does not go unrecorded. |
+| Hook | Events | What it does |
+| --- | --- | --- |
+| **session-start** | `SessionStart` | Calls `buddy_status` and puts the card in context, so the check-in happens whether or not the model remembers to ask. |
+| **project-memory** | `SessionStart` | Puts this repo's `.dragon-buddy/memories/` in context, quoted in full while small and listed by description past a budget. |
+| **observe-gate** | `UserPromptSubmit`, `PostToolUse`, `Stop` | Marks the turn dirty on an edit, clears the mark on `buddy_observe`, and blocks once at `Stop` if the turn changed code and never recorded it. |
+| **skill-tracker** | `PostToolUse`, `PreToolUse` | Notes every skill the session loads with the `Skill` tool, and adds any the model left out to `skills_used` on the next `buddy_observe`. |
 
 An instruction in `CLAUDE.md` is advisory and gets skipped — most often when the
 client defers MCP tools behind `ToolSearch`, so `buddy_*` is not in the tool list
 at all. Hooks are enforced by the client, which is why the calls live here.
 
-Both hooks fail open and silent: no buddy, no server, or a protocol change means
+Every hook fails open and silent: no buddy, no server, or a protocol change means
 they emit nothing rather than wedging your session. `buddy-session-start.mjs`
 finds the server via `$BUDDY_MCP_PATH`, then your own MCP config, then the
 `.mcp.json` shipped beside it in the bundle — which is the only declaration a
@@ -187,6 +188,31 @@ already recorded, and cost the buddy a duplicate observation each time.
 The two halves feed each other. `buddy_observe(skills_used)` is what trains the
 ranking that `buddy_advise` returns, which is why every skill in this pack passes
 it — a skill that reports nothing makes the advice worse for every skill.
+
+That list used to depend entirely on the model remembering, at the end of a task,
+every skill it loaded along the way. The skill tracker takes the memory out of
+it: the `Skill` tool call is the evidence, so the hook records it when it happens
+and merges it into the next `buddy_observe` through the hook's `updatedInput`.
+The model's own entries always come first and are never edited, the merged list
+is held to the server's limit of ten, a name that is not an identifier is
+dropped, and the rewrite grants no permission — a call you have not allowed is
+still refused. If the observation fails, the skills are sent again with the next
+one.
+
+#### Turning hooks off
+
+Set these in the `env` block of your Claude Code `settings.json`, so they survive
+plugin upgrades:
+
+| Variable | Effect |
+| --- | --- |
+| `DRAGON_BUDDY_HOOKS=off` | Every hook in the pack does nothing. |
+| `DRAGON_BUDDY_DISABLED_HOOKS=observe-gate,skill-tracker` | Just the hooks named, by the ids in the table above. |
+| `DRAGON_BUDDY_MEMORY_MAX_CHARS=4000` | The project-memory budget, 6000 characters by default. Past it bodies are dropped for a listing, and past it again the oldest memories are counted rather than named. |
+
+```json
+{ "env": { "DRAGON_BUDDY_DISABLED_HOOKS": "observe-gate" } }
+```
 
 ## Skills
 
@@ -276,11 +302,28 @@ description carries a `Use when` trigger clause and fits inside Claude Code's
 1024-character limit, every `references/` and `examples/` file is both reachable
 from a SKILL.md and actually exists (including cross-skill handoffs), every skill
 ships a worked example and a quality bar, every skill observes under its own
-qualified name, no local absolute path leaked into the docs, and the README lists
+qualified name, no local absolute path leaked into a doc, hook or script, and the README lists
 exactly the skills the pack contains — count included.
 
-CI runs the same command on every push and pull request. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for what adding a skill involves.
+The hooks are code, so they are checked by running them: each script below feeds
+its hook the JSON Claude Code would and reads back what it writes.
+
+```sh
+./scripts/check-observe-gate.sh
+./scripts/check-skill-tracker.sh
+./scripts/check-project-memory.sh
+```
+
+CI runs all of it on every push and pull request.
+
+Whether a skill's description actually gets it loaded is a question about the
+model rather than the files, and `evals/` answers it with
+[`claude plugin eval`](https://code.claude.com/docs/en/plugin-evals): a routing
+case per skill whose trigger is easy to misjudge, plus one that nothing in the
+pack should fire on. It makes real model calls on your account, so it is run by
+hand rather than in CI — see [evals/README.md](evals/README.md).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for what adding a skill involves.
 
 ## License
 

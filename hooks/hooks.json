@@ -29,7 +29,29 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": ".*buddy_observe.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/skill-tracker.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
+      {
+        "matcher": "Skill|.*buddy_observe.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/skill-tracker.mjs\"",
+            "timeout": 5
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write|NotebookEdit|MultiEdit|.*buddy_observe.*",
         "hooks": [

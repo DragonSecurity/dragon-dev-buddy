@@ -686,6 +686,15 @@ func TestHandoffsResolve(t *testing.T) {
 // this rule, so it must not trip it.
 var homePath = regexp.MustCompile(`/(?:Users|home)/([A-Za-z0-9._-]+)/`)
 
+// personalPathFiles are the extensions TestNoPersonalPaths reads. Markdown was
+// the only one until the hooks and scripts started shipping in the bundle: a
+// home path in a hook is not a doc typo but a default that works on exactly one
+// machine, and it installs onto every other.
+var personalPathFiles = map[string]bool{
+	".md": true, ".mjs": true, ".js": true, ".sh": true, ".json": true,
+	".yml": true, ".yaml": true, ".go": true,
+}
+
 // TestNoPersonalPaths stops a local absolute path reaching a published repo.
 // The pack's own secrets-and-config-audit would flag it, so it should not have
 // to.
@@ -696,12 +705,13 @@ func TestNoPersonalPaths(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
-			if d.Name() == ".git" {
+			// dist holds built bundles, which are zips of what is checked here.
+			if d.Name() == ".git" || d.Name() == "dist" {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if filepath.Ext(path) != ".md" {
+		if !personalPathFiles[filepath.Ext(path)] {
 			return nil
 		}
 		raw, err := os.ReadFile(path)
@@ -722,7 +732,7 @@ func TestNoPersonalPaths(t *testing.T) {
 		t.Fatalf("walking pack: %v", err)
 	}
 	for _, o := range offenders {
-		t.Errorf("%s: absolute home path in documentation; use ~ or a placeholder", o)
+		t.Errorf("%s: absolute home path in a shipped or checked-in file; use ~, $HOME or a placeholder", o)
 	}
 }
 

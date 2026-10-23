@@ -19,6 +19,8 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { hookEnabled } from './lib/switches.mjs';
+
 const TIMEOUT_MS = 10_000;
 
 /**
@@ -65,6 +67,10 @@ function resolveServer() {
   // every other path through this hook.
   return { command: 'buddy-mcp', args: [] };
 }
+
+// Switched off before anything is spawned: the point of turning this hook off is
+// usually that the spawn itself is what someone does not want at session start.
+if (!hookEnabled('session-start')) process.exit(0);
 
 const { command, args } = resolveServer();
 const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'ignore'] });
